@@ -57,6 +57,19 @@ describe("middleware", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
+  it("bloqueia um cookie com assinatura adulterada", async () => {
+    const token = await criarToken(SEGREDO);
+    const adulterado = token.slice(0, -3) + "xxx";
+    const res = await middleware(req("/api/groups", { cookie: `sessao=${adulterado}` }));
+    expect(res.status).toBe(401);
+  });
+
+  it("bloqueia um cookie assinado com outro segredo", async () => {
+    const token = await criarToken("outro-segredo-completamente-diferente");
+    const res = await middleware(req("/api/groups", { cookie: `sessao=${token}` }));
+    expect(res.status).toBe(401);
+  });
+
   it("retorna 500 config_ausente quando SESSION_SECRET não está configurado", async () => {
     const anterior = process.env.SESSION_SECRET;
     delete process.env.SESSION_SECRET;
