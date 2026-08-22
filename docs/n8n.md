@@ -4,7 +4,8 @@ Referência dos IDs que as Tasks 8–10 (workflows) e a Task 11 (rotas do app) p
 Todos os recursos vivem no projeto pessoal do dono.
 
 - **Project ID:** `rXHs40RzCFYQvu4U`
-- **Workflow existente:** `SMS` — `pzixxpeArkDYBco3`
+- **Workflow existente:** `SMS` — `pzixxpeArkDYBco3` (legado, ainda ativo)
+- **Sub-workflow `SMS — Enviar`:** `Fbfh7IxDLO5MH0Hh` (Task 8 — o motor de envio)
 
 ## Data Tables
 
@@ -70,9 +71,17 @@ formato mudar.
 
 ## Credenciais
 
-| Nome | ID | Tipo |
-|---|---|---|
-| `Zenvia API Key` | `GBqxcf5rc5oDNsBg` | `httpHeaderAuth` |
+| Nome | ID | Tipo | Header |
+|---|---|---|---|
+| `Zenvia API Key` | `GBqxcf5rc5oDNsBg` | `httpHeaderAuth` | `X-API-TOKEN` |
+| `App Callback Token` | `7I6MS6SniVaPXuUm` | `httpHeaderAuth` | `X-CALLBACK-TOKEN` |
+| `Google Sheets account` | `bXEzX3P6P7n7wUaF` | `googleSheetsOAuth2Api` | — |
+
+As credenciais de **Header Auth genérico** não podem ser anexadas a nós HTTP Request
+pelo MCP do n8n (a validação do servidor só aceita a chave `httpSslAuth` nesse tipo de
+nó). Os quatro nós HTTP de `SMS — Enviar` — `Enviar SMS`, `Avisar Inicio`,
+`Avisar Progresso` e `Avisar Fim` — precisam ter a credencial escolhida à mão na
+interface do n8n.
 
 ## Planilha
 
