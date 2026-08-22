@@ -583,29 +583,18 @@ tarefas por número.
 
 ### Task 4: Sessão, login e middleware
 
-Senha única sem freio é alvo confortável para força bruta, porque não há usuário a bloquear.
-
-> **Revisão de 2026-08-21 (decisão do dono).** A primeira versão desta tarefa limitava tentativas
-> por IP, lido de `x-forwarded-for.split(",")[0]`. Isso não funciona: a entrada mais à esquerda do
-> header é a que o **cliente** mandou, então bastava rotacioná-la para ganhar baldes infinitos — e,
-> sem proxy, todos caíam num balde único, permitindo trancar o dono de fora de propósito.
-> O freio agora é **atraso progressivo global, sem chave nenhuma**: não há balde para trocar, e
-> ninguém consegue trancar ninguém — apenas deixar o login lento.
->
-> **Segunda revisão.** A primeira implementação do atraso *lia* o valor antes do `await` e só
-> *escrevia* o contador depois de avaliar a senha. Num loop de evento single-threaded, N
-> requisições simultâneas leem o mesmo valor, dormem em paralelo e entram juntas — concorrência
-> burlava o freio inteiro. O atraso virou **reserva de vaga**: cada tentativa toma um lugar na
-> fila e empurra o próximo, então a vazão fica limitada a uma tentativa por intervalo,
-> independentemente de quantas chegam juntas.
+> **Decisão do dono (2026-08-21).** Este projeto tem **um único usuário** e uma senha simples.
+> **Não há proteção contra força bruta** — nem limitador por IP, nem atraso progressivo. Duas
+> versões disso foram escritas e descartadas; não reintroduza nenhuma delas. O que protege o app
+> é a senha mais o middleware de sessão, e isso basta para o uso pretendido.
 
 **Files:**
-- Create: `lib/session.ts`, `lib/login-throttle.ts`, `middleware.ts`, `app/api/login/route.ts`
-- Test: `lib/__tests__/session.test.ts`, `lib/__tests__/login-throttle.test.ts`, `lib/__tests__/middleware.test.ts`
+- Create: `lib/session.ts`, `middleware.ts`, `app/api/login/route.ts`
+- Test: `lib/__tests__/session.test.ts`, `lib/__tests__/middleware.test.ts`, `app/api/__tests__/login.test.ts`
 
 **Interfaces:**
 - Consumes: nada.
-- Produces: `criarToken(segredo, agora?): Promise<string>`, `validarToken(token, segredo, agora?): Promise<boolean>`, `senhaConfere(entrada, esperada, segredo): Promise<boolean>`, `reservarVaga(agora?): Vaga`, `liberar(): void`, e o tipo `Vaga`. O middleware protege todas as rotas das Tasks 11 e 12–15.
+- Produces: `criarToken(segredo, agora?): Promise<string>`, `validarToken(token, segredo, agora?): Promise<boolean>`, `senhaConfere(entrada, esperada, segredo): Promise<boolean>`. O middleware protege todas as rotas das Tasks 11 e 12–15.
 
 > **Atenção de runtime:** o middleware do Next roda no Edge, onde `node:crypto` não existe. Por isso `lib/session.ts` usa **Web Crypto** (`crypto.subtle`), que funciona nos dois runtimes — e por isso as funções são assíncronas.
 
@@ -741,155 +730,17 @@ export async function senhaConfere(
 Run: `pnpm test lib/__tests__/session.test.ts`
 Expected: PASS — 7 testes.
 
-- [ ] **Step 5: Escrever os testes do freio de login**
-
-`lib/__tests__/login-throttle.test.ts`. A reserva é determinística — os testes não dormem, apenas
-conferem a espera devolvida.
-
-```ts
-import { describe, it, expect, beforeEach } from "vitest";
-import { reservarVaga, liberar } from "@/lib/login-throttle";
-
-const AGORA = 1_700_000_000_000;
-
-describe("freio de login", () => {
-  beforeEach(() => {
-    liberar();
-  });
-
-  it("não atrasa a primeira tentativa", () => {
-    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 0 });
-  });
-
-  it("serializa tentativas simultâneas em vez de deixá-las passar juntas", () => {
-    // Todas chegam no MESMO instante: e o caso que uma leitura sem reserva deixaria passar.
-    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 0 });
-    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 1000 });
-    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 3000 });
-    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 7000 });
-  });
-
-  it("respeita o teto de 30 segundos por passo", () => {
-    for (let i = 0; i < 8; i++) reservarVaga(AGORA);
-    const a = reservarVaga(AGORA);
-    const b = reservarVaga(AGORA);
-    if (!a.concedida || !b.concedida) throw new Error("esperava vagas concedidas");
-    expect(b.esperaMs - a.esperaMs).toBe(30_000);
-  });
-
-  it("recusa em vez de segurar a conexão quando a fila passa de 30s", () => {
-    for (let i = 0; i < 20; i++) reservarVaga(AGORA);
-    expect(reservarVaga(AGORA)).toEqual({ concedida: false });
-  });
-
-  it("zera no login bem-sucedido", () => {
-    reservarVaga(AGORA);
-    reservarVaga(AGORA);
-    liberar();
-    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 0 });
-  });
-
-  it("decai depois de 15 minutos sem tentativa", () => {
-    for (let i = 0; i < 5; i++) reservarVaga(AGORA);
-    expect(reservarVaga(AGORA + 16 * 60 * 1000)).toEqual({ concedida: true, esperaMs: 0 });
-  });
-
-  it("não é burlável: não existe chave por cliente", () => {
-    reservarVaga(AGORA);
-    // Qualquer chamador avanca a MESMA fila — nao ha balde por IP para rotacionar.
-    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 1000 });
-  });
-});
-```
-
-- [ ] **Step 6: Rodar para ver falhar**
-
-Run: `pnpm test lib/__tests__/login-throttle.test.ts`
-Expected: FAIL — `Failed to resolve import "@/lib/login-throttle"`.
-
-- [ ] **Step 7: Implementar o freio**
-
-`lib/login-throttle.ts`. O ponto central: `reservarVaga` **lê e escreve na mesma passada síncrona**,
-antes de qualquer `await`. É isso que impede que requisições simultâneas leiam o mesmo atraso e
-durmam em paralelo.
-
-```ts
-const JANELA_MS = 15 * 60 * 1000;
-const TETO_MS = 30_000;
-const ESPERA_MAXIMA_MS = 30_000;
-
-let tentativas = 0;
-let ultimaTentativaEm = 0;
-let proximaLiberacaoEm = 0;
-
-export type Vaga = { concedida: true; esperaMs: number } | { concedida: false };
-
-function atrasoPara(n: number): number {
-  if (n <= 0) return 0;
-  return Math.min(1000 * 2 ** (n - 1), TETO_MS);
-}
-
-/**
- * Toma um lugar na fila de tentativas e devolve quanto esperar antes de avaliar a senha.
- * Conta a TENTATIVA, nao a falha: senao uma rajada simultanea entra inteira antes de
- * qualquer contador subir.
- */
-export function reservarVaga(agora: number = Date.now()): Vaga {
-  if (tentativas > 0 && agora - ultimaTentativaEm > JANELA_MS) {
-    tentativas = 0;
-    proximaLiberacaoEm = 0;
-  }
-
-  const inicio = Math.max(agora, proximaLiberacaoEm);
-  const esperaMs = inicio - agora;
-
-  // Recusa em vez de segurar conexao aberta por minutos sob enxurrada.
-  if (esperaMs > ESPERA_MAXIMA_MS) return { concedida: false };
-
-  tentativas += 1;
-  ultimaTentativaEm = agora;
-  proximaLiberacaoEm = inicio + atrasoPara(tentativas);
-
-  return { concedida: true, esperaMs };
-}
-
-/** Chamado no login bem-sucedido: quem sabe a senha nao paga pela fila. */
-export function liberar(): void {
-  tentativas = 0;
-  ultimaTentativaEm = 0;
-  proximaLiberacaoEm = 0;
-}
-```
-
-- [ ] **Step 8: Rodar até passar**
-
-Run: `pnpm test lib/__tests__/login-throttle.test.ts`
-Expected: PASS — 7 testes.
-
-- [ ] **Step 9: Criar a rota de login**
+- [ ] **Step 5: Criar a rota de login**
 
 `app/api/login/route.ts`:
 
 ```ts
 import { NextResponse } from "next/server";
 import { criarToken, senhaConfere } from "@/lib/session";
-import { reservarVaga, liberar } from "@/lib/login-throttle";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  // A vaga e reservada antes de qualquer await: e isso que serializa rajadas simultaneas.
-  const vaga = reservarVaga();
-  if (!vaga.concedida) {
-    return NextResponse.json(
-      { erro: "ocupado", mensagem: "Servidor ocupado. Tente de novo em instantes." },
-      { status: 429 },
-    );
-  }
-  if (vaga.esperaMs > 0) {
-    await new Promise((resolve) => setTimeout(resolve, vaga.esperaMs));
-  }
-
   const corpo = await req.json().catch(() => ({}));
   const senha = typeof corpo?.senha === "string" ? corpo.senha : "";
 
@@ -906,7 +757,6 @@ export async function POST(req: Request) {
     );
   }
 
-  liberar();
   const res = NextResponse.json({ ok: true });
   res.cookies.set("sessao", await criarToken(segredo), {
     httpOnly: true,
@@ -919,7 +769,7 @@ export async function POST(req: Request) {
 }
 ```
 
-- [ ] **Step 10: Criar o middleware**
+- [ ] **Step 6: Criar o middleware**
 
 `middleware.ts` na raiz. `/api/progress` fica de fora porque quem chama é o n8n, não o navegador — ela tem token próprio (Task 6).
 
@@ -967,7 +817,7 @@ export const config = {
 };
 ```
 
-- [ ] **Step 11: Verificar manualmente**
+- [ ] **Step 7: Verificar manualmente**
 
 ```bash
 pnpm dev
@@ -985,17 +835,13 @@ Expected: `401`.
 curl -s -X POST http://localhost:3000/api/login -H 'Content-Type: application/json' -d '{"senha":"errada"}' -w "\n%{http_code}\n"
 ```
 
-Expected: corpo com `"senha_invalida"` e status `401`.
+Expected: corpo com `"senha_invalida"` e status `401`, imediatamente — sem atraso algum.
 
-Repita o comando acima três vezes seguidas e observe o tempo de resposta: a segunda tentativa
-demora ~1s, a terceira ~2s, a quarta ~4s. Trocar o header `X-Forwarded-For` entre as tentativas
-**não** reseta o atraso — é justamente o ponto.
-
-- [ ] **Step 12: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add lib/session.ts lib/login-throttle.ts middleware.ts app/api/login/route.ts lib/__tests__
-git commit -m "feat: sessao com senha unica, freio progressivo de login e middleware"
+git add lib/session.ts middleware.ts app/api/login/route.ts lib/__tests__ app/api/__tests__
+git commit -m "feat: sessao com senha unica e middleware"
 ```
 
 ---

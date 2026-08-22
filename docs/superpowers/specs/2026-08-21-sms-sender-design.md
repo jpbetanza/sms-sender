@@ -224,9 +224,11 @@ limpeza após 1h. O n8n empurra em `/api/progress`; o navegador puxa em `/api/jo
 
 ### Sessão
 
-Senha compartilhada em variável de ambiente, comparada com `timingSafeEqual`. Cookie `httpOnly`
-+ `SameSite=Lax`, 12h. Limitador de tentativas por IP: senha única sem isso é alvo confortável
-para força bruta, já que não há usuário a bloquear.
+Senha compartilhada em variável de ambiente, comparada em tempo constante. Cookie `httpOnly`
++ `SameSite=Lax`, 12h.
+
+**Sem proteção contra força bruta**, por decisão do dono: o app tem um único usuário e uma senha
+simples. O que protege é a senha mais o middleware de sessão.
 
 ### Variáveis de ambiente
 
