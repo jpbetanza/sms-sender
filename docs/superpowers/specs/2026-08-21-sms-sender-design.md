@@ -95,7 +95,7 @@ Execute Workflow Trigger
                          → Enviar SMS (Zenvia)
                          → Sucesso? ─┬─ sim → Registrar Envio (Sheets: ultimo_envio)
                                      └─ não → Registrar Falha (código + corpo)
-                         → [callback: progresso] → Wait 250ms → volta
+                         → [callback: progresso] → Wait 100ms → volta
 ```
 
 Mudanças em relação ao workflow atual:
@@ -104,7 +104,7 @@ Mudanças em relação ao workflow atual:
   (`String($json.telefone)`); célula com máscara ou linha em branco vira falha silenciosa.
 - **`ultimo_envio` (timestamp) substitui `sms_enviado = 1`.** Coerente com "todos, sempre":
   a coluna registra, não trava.
-- **`Wait 250ms`** entre contatos, contra 429 da Zenvia.
+- **`Wait 100ms`** entre contatos, contra 429 da Zenvia. Intervalo definido pelo dono do projeto.
 - **A esteira duplicada é eliminada.**
 
 ### `SMS — Webhook`
