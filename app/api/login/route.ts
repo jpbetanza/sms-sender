@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { criarToken, senhaConfere } from "@/lib/session";
-import { podeTentar, registrarFalha, limparTentativas } from "@/lib/ratelimit";
+import { atrasoDaProximaTentativa, registrarFalha, limparFalhas } from "@/lib/login-throttle";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "desconhecido";
-
-  if (!podeTentar(ip)) {
-    return NextResponse.json(
-      { erro: "muitas_tentativas", mensagem: "Muitas tentativas. Tente de novo em 15 minutos." },
-      { status: 429 },
-    );
+  // O atraso vem ANTES de avaliar a senha: e ele que torna forca bruta inviavel por tempo.
+  const atraso = atrasoDaProximaTentativa();
+  if (atraso > 0) {
+    await new Promise((resolve) => setTimeout(resolve, atraso));
   }
 
   const corpo = await req.json().catch(() => ({}));
@@ -24,14 +21,14 @@ export async function POST(req: Request) {
   }
 
   if (!(await senhaConfere(senha, esperada, segredo))) {
-    registrarFalha(ip);
+    registrarFalha();
     return NextResponse.json(
       { erro: "senha_invalida", mensagem: "Senha incorreta." },
       { status: 401 },
     );
   }
 
-  limparTentativas(ip);
+  limparFalhas();
   const res = NextResponse.json({ ok: true });
   res.cookies.set("sessao", await criarToken(segredo), {
     httpOnly: true,
