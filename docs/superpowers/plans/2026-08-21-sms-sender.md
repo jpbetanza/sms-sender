@@ -1551,6 +1551,7 @@ Execute Workflow Trigger
 → Resolver Grupo        (Data Table sms_grupos: get row where chave = {{ $json.grupo }})
 → Ler Contatos          (Google Sheets: documento fixo, sheetName = {{ $json.aba }} por expressão)
 → Normalizar Contatos   (Code — codigo no Step 4)
+→ Filtrar Vazio         (descarta o item sentinela `vazio: true` antes do loop)
 → Abrir Disparo         (Data Table sms_disparos: insert)
 → Avisar Inicio         (IF callbackUrl != "" → HTTP POST evento "inicio")
 → Loop Contatos         (Split In Batches, batchSize 1)
@@ -1564,6 +1565,21 @@ Execute Workflow Trigger
               → Wait 100ms
               → volta ao Loop Contatos
 ```
+
+**Quatro regras obrigatórias, descobertas na revisão da primeira construção deste workflow:**
+
+- **Dentro do loop, use resolução por item pareado (`$('Nó').item`), nunca `$('Nó').first()`.**
+  `.first()` sem `runIndex` resolve pelo índice de execução *do nó que chama*. Nós que só rodam
+  num dos ramos do IF ficam para trás assim que um contato falha, e o `ultimo_envio` acaba
+  gravado na linha errada da planilha — marcando como entregue quem não recebeu. Um teste só
+  com sucessos nunca revela isso.
+- **`Filtrar Vazio` é obrigatório.** `Normalizar Contatos` devolve um item sentinela
+  `{ vazio: true }` quando descarta tudo. Sem o filtro, esse item entra no loop como se fosse
+  contato e gera uma chamada paga à Zenvia sem destinatário.
+- **Timestamps em UTC:** `{{ $now.toUTC().toISO() }}`, não `{{ $now.toISO() }}`. O segundo emite
+  o offset local (`-03:00`) e contradiz o schema, que declara UTC.
+- **Os IFs de callback testam "não vazio", não `!= ""`.** Um chamador que omita `callbackUrl`
+  manda `undefined`, que passa por `notEquals ""` e dispara POST para lugar nenhum.
 
 - [ ] **Step 4: Código do nó `Normalizar Contatos`**
 
