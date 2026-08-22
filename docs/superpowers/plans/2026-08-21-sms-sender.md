@@ -583,15 +583,22 @@ tarefas por número.
 
 ### Task 4: Sessão, login e middleware
 
-Senha única sem limitador é alvo confortável para força bruta, porque não há usuário a bloquear.
+Senha única sem freio é alvo confortável para força bruta, porque não há usuário a bloquear.
+
+> **Revisão de 2026-08-21 (decisão do dono).** A primeira versão desta tarefa limitava tentativas
+> por IP, lido de `x-forwarded-for.split(",")[0]`. Isso não funciona: a entrada mais à esquerda do
+> header é a que o **cliente** mandou, então bastava rotacioná-la para ganhar baldes infinitos — e,
+> sem proxy, todos caíam num balde único, permitindo trancar o dono de fora de propósito.
+> O freio agora é **atraso progressivo global, sem chave nenhuma**: não há balde para trocar, e
+> ninguém consegue trancar ninguém — apenas deixar o login lento.
 
 **Files:**
-- Create: `lib/session.ts`, `lib/ratelimit.ts`, `middleware.ts`, `app/api/login/route.ts`
-- Test: `lib/__tests__/session.test.ts`, `lib/__tests__/ratelimit.test.ts`
+- Create: `lib/session.ts`, `lib/login-throttle.ts`, `middleware.ts`, `app/api/login/route.ts`
+- Test: `lib/__tests__/session.test.ts`, `lib/__tests__/login-throttle.test.ts`, `lib/__tests__/middleware.test.ts`
 
 **Interfaces:**
 - Consumes: nada.
-- Produces: `criarToken(segredo, agora?): Promise<string>`, `validarToken(token, segredo, agora?): Promise<boolean>`, `senhaConfere(entrada, esperada, segredo): Promise<boolean>`, `podeTentar(ip, agora?): boolean`, `registrarFalha(ip, agora?): void`, `limparTentativas(ip): void`. O middleware protege todas as rotas das Tasks 11 e 12–15.
+- Produces: `criarToken(segredo, agora?): Promise<string>`, `validarToken(token, segredo, agora?): Promise<boolean>`, `senhaConfere(entrada, esperada, segredo): Promise<boolean>`, `atrasoDaProximaTentativa(agora?): number`, `registrarFalha(agora?): void`, `limparFalhas(): void`. O middleware protege todas as rotas das Tasks 11 e 12–15.
 
 > **Atenção de runtime:** o middleware do Next roda no Edge, onde `node:crypto` não existe. Por isso `lib/session.ts` usa **Web Crypto** (`crypto.subtle`), que funciona nos dois runtimes — e por isso as funções são assíncronas.
 
@@ -727,93 +734,110 @@ export async function senhaConfere(
 Run: `pnpm test lib/__tests__/session.test.ts`
 Expected: PASS — 7 testes.
 
-- [ ] **Step 5: Escrever os testes do limitador**
+- [ ] **Step 5: Escrever os testes do freio de login**
 
-`lib/__tests__/ratelimit.test.ts`:
+`lib/__tests__/login-throttle.test.ts`. O atraso é uma função pura do número de falhas — os testes
+não dormem, apenas conferem o valor calculado.
 
 ```ts
 import { describe, it, expect, beforeEach } from "vitest";
-import { podeTentar, registrarFalha, limparTentativas } from "@/lib/ratelimit";
+import { atrasoDaProximaTentativa, registrarFalha, limparFalhas } from "@/lib/login-throttle";
 
 const AGORA = 1_700_000_000_000;
 
-describe("limitador de tentativas", () => {
+describe("freio de login", () => {
   beforeEach(() => {
-    limparTentativas("1.2.3.4");
+    limparFalhas();
   });
 
-  it("permite as cinco primeiras tentativas", () => {
-    for (let i = 0; i < 5; i++) {
-      expect(podeTentar("1.2.3.4", AGORA)).toBe(true);
-      registrarFalha("1.2.3.4", AGORA);
-    }
-    expect(podeTentar("1.2.3.4", AGORA)).toBe(false);
+  it("não atrasa a primeira tentativa", () => {
+    expect(atrasoDaProximaTentativa(AGORA)).toBe(0);
   });
 
-  it("libera de novo depois da janela de 15 minutos", () => {
-    for (let i = 0; i < 5; i++) registrarFalha("1.2.3.4", AGORA);
-    expect(podeTentar("1.2.3.4", AGORA)).toBe(false);
-    expect(podeTentar("1.2.3.4", AGORA + 16 * 60 * 1000)).toBe(true);
+  it("dobra o atraso a cada falha", () => {
+    registrarFalha(AGORA);
+    expect(atrasoDaProximaTentativa(AGORA)).toBe(1000);
+    registrarFalha(AGORA);
+    expect(atrasoDaProximaTentativa(AGORA)).toBe(2000);
+    registrarFalha(AGORA);
+    expect(atrasoDaProximaTentativa(AGORA)).toBe(4000);
   });
 
-  it("nao mistura IPs diferentes", () => {
-    for (let i = 0; i < 5; i++) registrarFalha("1.2.3.4", AGORA);
-    expect(podeTentar("9.9.9.9", AGORA)).toBe(true);
+  it("respeita o teto de 30 segundos", () => {
+    for (let i = 0; i < 20; i++) registrarFalha(AGORA);
+    expect(atrasoDaProximaTentativa(AGORA)).toBe(30_000);
   });
 
-  it("zera a contagem no login bem-sucedido", () => {
-    for (let i = 0; i < 5; i++) registrarFalha("1.2.3.4", AGORA);
-    limparTentativas("1.2.3.4");
-    expect(podeTentar("1.2.3.4", AGORA)).toBe(true);
+  it("zera no login bem-sucedido", () => {
+    for (let i = 0; i < 5; i++) registrarFalha(AGORA);
+    limparFalhas();
+    expect(atrasoDaProximaTentativa(AGORA)).toBe(0);
+  });
+
+  it("decai depois de 15 minutos sem falha", () => {
+    for (let i = 0; i < 5; i++) registrarFalha(AGORA);
+    expect(atrasoDaProximaTentativa(AGORA + 16 * 60 * 1000)).toBe(0);
+  });
+
+  it("não é burlável: não existe chave por cliente", () => {
+    registrarFalha(AGORA);
+    registrarFalha(AGORA);
+    // Qualquer chamador vê o mesmo atraso — nao ha balde por IP para rotacionar.
+    expect(atrasoDaProximaTentativa(AGORA)).toBe(2000);
   });
 });
 ```
 
 - [ ] **Step 6: Rodar para ver falhar**
 
-Run: `pnpm test lib/__tests__/ratelimit.test.ts`
-Expected: FAIL — `Failed to resolve import "@/lib/ratelimit"`.
+Run: `pnpm test lib/__tests__/login-throttle.test.ts`
+Expected: FAIL — `Failed to resolve import "@/lib/login-throttle"`.
 
-- [ ] **Step 7: Implementar o limitador**
+- [ ] **Step 7: Implementar o freio**
 
-`lib/ratelimit.ts`:
+`lib/login-throttle.ts`. Estado global de processo, sem chave: é exatamente isso que torna o freio
+inburlável (não há balde para trocar) e incapaz de trancar o dono de fora (só atrasa).
 
 ```ts
 const JANELA_MS = 15 * 60 * 1000;
-const MAX_FALHAS = 5;
+const TETO_MS = 30_000;
 
-type Registro = { falhas: number; primeiraEm: number };
+let falhas = 0;
+let ultimaFalhaEm = 0;
 
-const porIp = new Map<string, Registro>();
-
-export function podeTentar(ip: string, agora: number = Date.now()): boolean {
-  const r = porIp.get(ip);
-  if (!r) return true;
-  if (agora - r.primeiraEm > JANELA_MS) {
-    porIp.delete(ip);
-    return true;
+/** Falhas que ainda contam: tudo decai depois de JANELA_MS sem nenhuma falha nova. */
+function falhasVigentes(agora: number): number {
+  if (falhas === 0) return 0;
+  if (agora - ultimaFalhaEm > JANELA_MS) {
+    falhas = 0;
+    return 0;
   }
-  return r.falhas < MAX_FALHAS;
+  return falhas;
 }
 
-export function registrarFalha(ip: string, agora: number = Date.now()): void {
-  const r = porIp.get(ip);
-  if (!r || agora - r.primeiraEm > JANELA_MS) {
-    porIp.set(ip, { falhas: 1, primeiraEm: agora });
-    return;
-  }
-  r.falhas += 1;
+/** Quanto esperar antes de avaliar a proxima tentativa, em ms. */
+export function atrasoDaProximaTentativa(agora: number = Date.now()): number {
+  const n = falhasVigentes(agora);
+  if (n === 0) return 0;
+  return Math.min(1000 * 2 ** (n - 1), TETO_MS);
 }
 
-export function limparTentativas(ip: string): void {
-  porIp.delete(ip);
+export function registrarFalha(agora: number = Date.now()): void {
+  falhasVigentes(agora);
+  falhas += 1;
+  ultimaFalhaEm = agora;
+}
+
+export function limparFalhas(): void {
+  falhas = 0;
+  ultimaFalhaEm = 0;
 }
 ```
 
 - [ ] **Step 8: Rodar até passar**
 
-Run: `pnpm test lib/__tests__/ratelimit.test.ts`
-Expected: PASS — 4 testes.
+Run: `pnpm test lib/__tests__/login-throttle.test.ts`
+Expected: PASS — 6 testes.
 
 - [ ] **Step 9: Criar a rota de login**
 
@@ -822,18 +846,15 @@ Expected: PASS — 4 testes.
 ```ts
 import { NextResponse } from "next/server";
 import { criarToken, senhaConfere } from "@/lib/session";
-import { podeTentar, registrarFalha, limparTentativas } from "@/lib/ratelimit";
+import { atrasoDaProximaTentativa, registrarFalha, limparFalhas } from "@/lib/login-throttle";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "desconhecido";
-
-  if (!podeTentar(ip)) {
-    return NextResponse.json(
-      { erro: "muitas_tentativas", mensagem: "Muitas tentativas. Tente de novo em 15 minutos." },
-      { status: 429 },
-    );
+  // O atraso vem ANTES de avaliar a senha: e ele que torna forca bruta inviavel por tempo.
+  const atraso = atrasoDaProximaTentativa();
+  if (atraso > 0) {
+    await new Promise((resolve) => setTimeout(resolve, atraso));
   }
 
   const corpo = await req.json().catch(() => ({}));
@@ -846,14 +867,14 @@ export async function POST(req: Request) {
   }
 
   if (!(await senhaConfere(senha, esperada, segredo))) {
-    registrarFalha(ip);
+    registrarFalha();
     return NextResponse.json(
       { erro: "senha_invalida", mensagem: "Senha incorreta." },
       { status: 401 },
     );
   }
 
-  limparTentativas(ip);
+  limparFalhas();
   const res = NextResponse.json({ ok: true });
   res.cookies.set("sessao", await criarToken(segredo), {
     httpOnly: true,
@@ -874,16 +895,26 @@ export async function POST(req: Request) {
 import { NextResponse, type NextRequest } from "next/server";
 import { validarToken } from "@/lib/session";
 
-const PUBLICAS = ["/login", "/api/login", "/api/progress"];
+// Correspondencia EXATA, nao por prefixo: subarvore publica faria qualquer rota
+// futura aninhada sob esses caminhos nascer sem autenticacao, em silencio.
+const PUBLICAS = new Set(["/login", "/api/login", "/api/progress"]);
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (PUBLICAS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (PUBLICAS.has(pathname)) {
     return NextResponse.next();
   }
 
-  const segredo = process.env.SESSION_SECRET ?? "";
+  const segredo = process.env.SESSION_SECRET;
+  if (!segredo) {
+    // Falha explicita e legivel, em vez de estourar DataError dentro do crypto.subtle.
+    return NextResponse.json(
+      { erro: "config_ausente", mensagem: "SESSION_SECRET não configurado." },
+      { status: 500 },
+    );
+  }
+
   const token = req.cookies.get("sessao")?.value;
 
   if (await validarToken(token, segredo)) {
@@ -924,11 +955,15 @@ curl -s -X POST http://localhost:3000/api/login -H 'Content-Type: application/js
 
 Expected: corpo com `"senha_invalida"` e status `401`.
 
+Repita o comando acima três vezes seguidas e observe o tempo de resposta: a segunda tentativa
+demora ~1s, a terceira ~2s, a quarta ~4s. Trocar o header `X-Forwarded-For` entre as tentativas
+**não** reseta o atraso — é justamente o ponto.
+
 - [ ] **Step 12: Commit**
 
 ```bash
-git add lib/session.ts lib/ratelimit.ts middleware.ts app/api/login/route.ts lib/__tests__/session.test.ts lib/__tests__/ratelimit.test.ts
-git commit -m "feat: sessao com senha unica, limitador de tentativas e middleware"
+git add lib/session.ts lib/login-throttle.ts middleware.ts app/api/login/route.ts lib/__tests__
+git commit -m "feat: sessao com senha unica, freio progressivo de login e middleware"
 ```
 
 ---
