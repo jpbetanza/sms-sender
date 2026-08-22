@@ -1192,12 +1192,23 @@ O store em memória é correto **porque a hospedagem é de instância única** (
 `lib/__tests__/jobs.test.ts`:
 
 ```ts
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
   abrirJob, jobExiste, definirTotal, registrarResultado, fecharJob, obterJob,
 } from "@/lib/jobs";
 
 const AGORA = 1_700_000_000_000;
+
+// Varias assercoes leem sem passar `agora` e caem no Date.now() real. Sem congelar o
+// relogio, os jobs escritos em AGORA ja nasceriam expirados pelo TTL de 1h.
+beforeAll(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(AGORA);
+});
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 describe("store de jobs", () => {
   it("abre um job em andamento", () => {
