@@ -37,7 +37,6 @@
 | Arquivo | Responsabilidade |
 |---|---|
 | `lib/sms.ts` | Contagem de segmentos GSM-7/UCS-2. Puro, sem I/O. |
-| `lib/phone.ts` | Normalização de telefone para E.164. Puro, sem I/O. |
 | `lib/session.ts` | Token de sessão assinado (HMAC) e comparação de senha. |
 | `lib/jobs.ts` | Store em memória do progresso, com TTL. |
 | `lib/schema.ts` | Schemas zod compartilhados entre cliente e servidor. |
@@ -47,7 +46,7 @@
 | `components/*.tsx` | Componentes de tela, um arquivo por responsabilidade. |
 | `hooks/useJobProgress.ts` | Polling do progresso, com parada automática. |
 
-Regra que atravessa o plano: **nenhum arquivo além de `lib/n8n.ts` chama o n8n**, e **nenhum componente calcula segmento ou normaliza telefone** — isso vive em `lib/`, testado isoladamente.
+Regra que atravessa o plano: **nenhum arquivo além de `lib/n8n.ts` chama o n8n**, e **nenhum componente calcula contagem de segmento por conta própria** — isso vive em `lib/sms.ts`, testado isoladamente. Tratamento de telefone não é responsabilidade do app (ver Task 3).
 
 ---
 
@@ -562,131 +561,26 @@ git commit -m "feat: contagem de segmentos SMS (GSM-7/UCS-2)"
 
 ---
 
-### Task 3: Normalização de telefone
+### Task 3: — removida
 
-O workflow atual manda `String($json.telefone)` cru da planilha para a Zenvia. Célula com máscara, espaço sobrando ou número de fixo vira falha silenciosa contada como envio.
+**Decisão do dono do projeto (2026-08-21):** a regra de telefone vive **apenas no nó Code do n8n**,
+não em `lib/phone.ts`. A planilha é mantida com os números já tratados, então o app não precisa
+de lógica de normalização — e duplicar a regra em TypeScript e JavaScript seria manter duas
+verdades sobre o mesmo assunto.
 
-> **Ponto de decisão do dono do projeto.** A implementação abaixo funciona e é a recomendação padrão, mas três regras são julgamento de domínio, não técnica: (a) prefixar `9` em celular de 8 dígitos, (b) rejeitar telefone fixo em vez de tentar enviar, (c) rejeitar número sem DDD em vez de assumir um. Se o dono decidir diferente, ajuste os testes **antes** da implementação.
+Consequências, já aplicadas neste plano:
 
-**Files:**
-- Create: `lib/phone.ts`
-- Test: `lib/__tests__/phone.test.ts`
+- `lib/phone.ts` e seus testes **não existem**. Não crie.
+- O nó `Normalizar Contatos` (Task 8) vira uma **guarda de descarte**, não um conserto: pula linha
+  vazia, deduplica e separa o que claramente não é telefone. Ele não reescreve número nenhum.
+- Consequência aceita: a regra não tem teste automatizado. A verificação é o disparo real para o
+  grupo `Teste` (Task 8, Step 10).
 
-**Interfaces:**
-- Consumes: nada.
-- Produces: `normalizarTelefone(bruto: string): ResultadoTelefone`. Consumido pelo nó `Normalizar Contatos` do n8n (Task 8), que replica esta regra em JavaScript dentro de um nó Code.
-
-- [ ] **Step 1: Escrever os testes que falham**
-
-`lib/__tests__/phone.test.ts`:
-
-```ts
-import { describe, it, expect } from "vitest";
-import { normalizarTelefone } from "@/lib/phone";
-
-describe("normalizarTelefone", () => {
-  it("aceita celular com mascara", () => {
-    expect(normalizarTelefone("(11) 99999-9999")).toEqual({ ok: true, e164: "5511999999999" });
-  });
-
-  it("aceita numero que ja vem com 55", () => {
-    expect(normalizarTelefone("5511999999999")).toEqual({ ok: true, e164: "5511999999999" });
-  });
-
-  it("aceita +55 com espacos", () => {
-    expect(normalizarTelefone(" +55 11 99999 9999 ")).toEqual({ ok: true, e164: "5511999999999" });
-  });
-
-  it("prefixa o nono digito em celular de 8 digitos", () => {
-    expect(normalizarTelefone("11 9999-9999")).toEqual({ ok: true, e164: "5511999999999" });
-  });
-
-  it("rejeita telefone fixo, que nao recebe SMS", () => {
-    expect(normalizarTelefone("(11) 3333-4444")).toEqual({ ok: false, motivo: "fixo" });
-  });
-
-  it("rejeita celula vazia", () => {
-    expect(normalizarTelefone("   ")).toEqual({ ok: false, motivo: "vazio" });
-  });
-
-  it("rejeita texto sem digitos", () => {
-    expect(normalizarTelefone("nao tem")).toEqual({ ok: false, motivo: "vazio" });
-  });
-
-  it("rejeita numero curto demais", () => {
-    expect(normalizarTelefone("11 9999")).toEqual({ ok: false, motivo: "curto" });
-  });
-
-  it("rejeita numero longo demais", () => {
-    expect(normalizarTelefone("5511999999999999")).toEqual({ ok: false, motivo: "longo" });
-  });
-
-  it("rejeita DDD inexistente", () => {
-    expect(normalizarTelefone("0199999999999".slice(0, 11))).toEqual({ ok: false, motivo: "ddd" });
-  });
-});
-```
-
-- [ ] **Step 2: Rodar para ver falhar**
-
-Run: `pnpm test lib/__tests__/phone.test.ts`
-Expected: FAIL — `Failed to resolve import "@/lib/phone"`.
-
-- [ ] **Step 3: Implementar**
-
-`lib/phone.ts`:
-
-```ts
-export type MotivoDescarte = "vazio" | "curto" | "longo" | "ddd" | "fixo";
-
-export type ResultadoTelefone =
-  | { ok: true; e164: string }
-  | { ok: false; motivo: MotivoDescarte };
-
-export function normalizarTelefone(bruto: string): ResultadoTelefone {
-  const digitos = (bruto ?? "").replace(/\D/g, "");
-  if (digitos.length === 0) return { ok: false, motivo: "vazio" };
-
-  // Remove o codigo do pais so quando sobra numero nacional plausivel.
-  let nacional = digitos;
-  if (nacional.startsWith("55") && nacional.length >= 12) {
-    nacional = nacional.slice(2);
-  }
-
-  if (nacional.length < 10) return { ok: false, motivo: "curto" };
-  if (nacional.length > 11) return { ok: false, motivo: "longo" };
-
-  const ddd = nacional.slice(0, 2);
-  if (Number(ddd) < 11 || Number(ddd) > 99) return { ok: false, motivo: "ddd" };
-
-  let assinante = nacional.slice(2);
-
-  // Celular antigo de 8 digitos: comeca em 6-9 e ganha o nono digito.
-  if (assinante.length === 8 && /^[6-9]/.test(assinante)) {
-    assinante = "9" + assinante;
-  }
-
-  // Fixo (8 digitos comecando em 2-5) nao recebe SMS.
-  if (assinante.length === 8) return { ok: false, motivo: "fixo" };
-  if (assinante.length !== 9 || !/^9/.test(assinante)) return { ok: false, motivo: "fixo" };
-
-  return { ok: true, e164: `55${ddd}${assinante}` };
-}
-```
-
-- [ ] **Step 4: Rodar até passar**
-
-Run: `pnpm test lib/__tests__/phone.test.ts`
-Expected: PASS — 10 testes.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add lib/phone.ts lib/__tests__/phone.test.ts
-git commit -m "feat: normalizacao de telefone para E.164"
-```
+A numeração das tarefas seguintes foi preservada de propósito — as Tasks 8 e 11 referenciam
+tarefas por número.
 
 ---
+
 ### Task 4: Sessão, login e middleware
 
 Senha única sem limitador é alvo confortável para força bruta, porque não há usuário a bloquear.
@@ -1713,7 +1607,7 @@ Uma única cópia da lógica de envio, chamada tanto pelo webhook quanto pelo ag
 **Files:** workflow novo no n8n; anotar o ID em `docs/n8n.md`.
 
 **Interfaces:**
-- Consumes: `sms_grupos`, `sms_disparos` (Task 7); a rota `/api/progress` (Task 6).
+- Consumes: `sms_grupos`, `sms_disparos` (Task 7); a rota `/api/progress` (Task 6). Não depende de `lib/` — ver Task 3.
 - Produces: sub-workflow que aceita `{ grupo, mensagem, fallbackNome, jobId, callbackUrl, origem }` e devolve `{ total, enviados, falhas, descartados, resultado }`. Chamado pelas Tasks 9 e 10.
 
 - [ ] **Step 1: Ler a referência do SDK e as boas práticas**
@@ -1749,44 +1643,29 @@ Execute Workflow Trigger
 
 - [ ] **Step 4: Código do nó `Normalizar Contatos`**
 
-Porta da regra de `lib/phone.ts` (Task 3). Se aquela regra mudar, esta muda junto.
+Guarda de descarte, não conserto. A planilha é mantida com os números já tratados (Task 3), então
+este nó **não reescreve nada** — apenas impede que linha vazia, duplicada ou visivelmente inválida
+chegue à Zenvia, que cobra por chamada.
 
 ```js
-const MOTIVOS = { vazio: 0, curto: 0, longo: 0, ddd: 0, fixo: 0 };
-
-function normalizar(bruto) {
-  const digitos = String(bruto ?? '').replace(/\D/g, '');
-  if (digitos.length === 0) return { ok: false, motivo: 'vazio' };
-
-  let nacional = digitos;
-  if (nacional.startsWith('55') && nacional.length >= 12) nacional = nacional.slice(2);
-
-  if (nacional.length < 10) return { ok: false, motivo: 'curto' };
-  if (nacional.length > 11) return { ok: false, motivo: 'longo' };
-
-  const ddd = nacional.slice(0, 2);
-  if (Number(ddd) < 11 || Number(ddd) > 99) return { ok: false, motivo: 'ddd' };
-
-  let assinante = nacional.slice(2);
-  if (assinante.length === 8 && /^[6-9]/.test(assinante)) assinante = '9' + assinante;
-  if (assinante.length !== 9 || !/^9/.test(assinante)) return { ok: false, motivo: 'fixo' };
-
-  return { ok: true, e164: '55' + ddd + assinante };
-}
+const descartados = { vazio: 0, invalido: 0, duplicado: 0 };
 
 const entrada = $('Resolver Grupo').first().json;
 const vistos = new Set();
 const saida = [];
 
 for (const item of $input.all()) {
-  const r = normalizar(item.json.telefone);
-  if (!r.ok) { MOTIVOS[r.motivo] += 1; continue; }
-  if (vistos.has(r.e164)) continue;
-  vistos.add(r.e164);
+  const digitos = String(item.json.telefone ?? '').replace(/\D/g, '');
+
+  if (digitos.length === 0) { descartados.vazio += 1; continue; }
+  // Planilha tratada: esperamos 55 + DDD + numero. Fora dessa faixa, nao arriscamos a chamada.
+  if (digitos.length < 12 || digitos.length > 13) { descartados.invalido += 1; continue; }
+  if (vistos.has(digitos)) { descartados.duplicado += 1; continue; }
+
+  vistos.add(digitos);
   saida.push({
     json: {
-      telefone: r.e164,
-      telefoneOriginal: String(item.json.telefone ?? ''),
+      telefone: digitos,
       nome: String(item.json.nome ?? '').trim(),
       linha: item.json.row_number,
       grupo: entrada.grupo,
@@ -1796,13 +1675,13 @@ for (const item of $input.all()) {
       callbackUrl: entrada.callbackUrl,
       origem: entrada.origem,
       aba: entrada.aba,
-      descartados: MOTIVOS,
+      descartados,
     },
   });
 }
 
 if (saida.length === 0) {
-  return [{ json: { vazio: true, descartados: MOTIVOS, ...entrada } }];
+  return [{ json: { vazio: true, descartados, ...entrada } }];
 }
 
 return saida;
