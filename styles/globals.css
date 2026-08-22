@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@plugin '../hero.ts';
+
+@source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --font-sans: "font", sans-serif;
+    --font-mono: "monospace", monospace;
+
+    /* Custom Tokens */
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-ring: var(--ring);
+}
+
+:root {
+  --accent: #E8D5C4;
+  --accent-foreground: #2E1F1F;
+  --card: #FCFAF8;
+  --card-foreground: #2D1F1F;
+  --popover: #FCFAF8;
+  --popover-foreground: #2D1F1F;
+  --muted: #EDEBE8;
+  --muted-foreground: #6E6560;
+  --destructive: #DC2626;
+  --destructive-foreground: #F9F6F2;
+  --border: #DDD7D0;
+  --ring: #732626;
+}
+
+.dark {
+  --accent: #2D2424;
+  --accent-foreground: #EFECE9;
+  --card: #1C1616;
+  --card-foreground: #EFECE9;
+  --popover: #1C1616;
+  --popover-foreground: #EFECE9;
+  --muted: #2C2525;
+  --muted-foreground: #EFECE9;
+  --destructive: #DC2626;
+  --destructive-foreground: #EFECE9;
+  --border: #2C2525;
+  --ring: #C45454;
+}
