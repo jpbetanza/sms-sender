@@ -591,6 +591,13 @@ Senha única sem freio é alvo confortável para força bruta, porque não há u
 > sem proxy, todos caíam num balde único, permitindo trancar o dono de fora de propósito.
 > O freio agora é **atraso progressivo global, sem chave nenhuma**: não há balde para trocar, e
 > ninguém consegue trancar ninguém — apenas deixar o login lento.
+>
+> **Segunda revisão.** A primeira implementação do atraso *lia* o valor antes do `await` e só
+> *escrevia* o contador depois de avaliar a senha. Num loop de evento single-threaded, N
+> requisições simultâneas leem o mesmo valor, dormem em paralelo e entram juntas — concorrência
+> burlava o freio inteiro. O atraso virou **reserva de vaga**: cada tentativa toma um lugar na
+> fila e empurra o próximo, então a vazão fica limitada a uma tentativa por intervalo,
+> independentemente de quantas chegam juntas.
 
 **Files:**
 - Create: `lib/session.ts`, `lib/login-throttle.ts`, `middleware.ts`, `app/api/login/route.ts`
@@ -598,7 +605,7 @@ Senha única sem freio é alvo confortável para força bruta, porque não há u
 
 **Interfaces:**
 - Consumes: nada.
-- Produces: `criarToken(segredo, agora?): Promise<string>`, `validarToken(token, segredo, agora?): Promise<boolean>`, `senhaConfere(entrada, esperada, segredo): Promise<boolean>`, `atrasoDaProximaTentativa(agora?): number`, `registrarFalha(agora?): void`, `limparFalhas(): void`. O middleware protege todas as rotas das Tasks 11 e 12–15.
+- Produces: `criarToken(segredo, agora?): Promise<string>`, `validarToken(token, segredo, agora?): Promise<boolean>`, `senhaConfere(entrada, esperada, segredo): Promise<boolean>`, `reservarVaga(agora?): Vaga`, `liberar(): void`, e o tipo `Vaga`. O middleware protege todas as rotas das Tasks 11 e 12–15.
 
 > **Atenção de runtime:** o middleware do Next roda no Edge, onde `node:crypto` não existe. Por isso `lib/session.ts` usa **Web Crypto** (`crypto.subtle`), que funciona nos dois runtimes — e por isso as funções são assíncronas.
 
@@ -736,54 +743,61 @@ Expected: PASS — 7 testes.
 
 - [ ] **Step 5: Escrever os testes do freio de login**
 
-`lib/__tests__/login-throttle.test.ts`. O atraso é uma função pura do número de falhas — os testes
-não dormem, apenas conferem o valor calculado.
+`lib/__tests__/login-throttle.test.ts`. A reserva é determinística — os testes não dormem, apenas
+conferem a espera devolvida.
 
 ```ts
 import { describe, it, expect, beforeEach } from "vitest";
-import { atrasoDaProximaTentativa, registrarFalha, limparFalhas } from "@/lib/login-throttle";
+import { reservarVaga, liberar } from "@/lib/login-throttle";
 
 const AGORA = 1_700_000_000_000;
 
 describe("freio de login", () => {
   beforeEach(() => {
-    limparFalhas();
+    liberar();
   });
 
   it("não atrasa a primeira tentativa", () => {
-    expect(atrasoDaProximaTentativa(AGORA)).toBe(0);
+    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 0 });
   });
 
-  it("dobra o atraso a cada falha", () => {
-    registrarFalha(AGORA);
-    expect(atrasoDaProximaTentativa(AGORA)).toBe(1000);
-    registrarFalha(AGORA);
-    expect(atrasoDaProximaTentativa(AGORA)).toBe(2000);
-    registrarFalha(AGORA);
-    expect(atrasoDaProximaTentativa(AGORA)).toBe(4000);
+  it("serializa tentativas simultâneas em vez de deixá-las passar juntas", () => {
+    // Todas chegam no MESMO instante: e o caso que uma leitura sem reserva deixaria passar.
+    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 0 });
+    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 1000 });
+    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 3000 });
+    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 7000 });
   });
 
-  it("respeita o teto de 30 segundos", () => {
-    for (let i = 0; i < 20; i++) registrarFalha(AGORA);
-    expect(atrasoDaProximaTentativa(AGORA)).toBe(30_000);
+  it("respeita o teto de 30 segundos por passo", () => {
+    for (let i = 0; i < 8; i++) reservarVaga(AGORA);
+    const a = reservarVaga(AGORA);
+    const b = reservarVaga(AGORA);
+    if (!a.concedida || !b.concedida) throw new Error("esperava vagas concedidas");
+    expect(b.esperaMs - a.esperaMs).toBe(30_000);
+  });
+
+  it("recusa em vez de segurar a conexão quando a fila passa de 30s", () => {
+    for (let i = 0; i < 20; i++) reservarVaga(AGORA);
+    expect(reservarVaga(AGORA)).toEqual({ concedida: false });
   });
 
   it("zera no login bem-sucedido", () => {
-    for (let i = 0; i < 5; i++) registrarFalha(AGORA);
-    limparFalhas();
-    expect(atrasoDaProximaTentativa(AGORA)).toBe(0);
+    reservarVaga(AGORA);
+    reservarVaga(AGORA);
+    liberar();
+    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 0 });
   });
 
-  it("decai depois de 15 minutos sem falha", () => {
-    for (let i = 0; i < 5; i++) registrarFalha(AGORA);
-    expect(atrasoDaProximaTentativa(AGORA + 16 * 60 * 1000)).toBe(0);
+  it("decai depois de 15 minutos sem tentativa", () => {
+    for (let i = 0; i < 5; i++) reservarVaga(AGORA);
+    expect(reservarVaga(AGORA + 16 * 60 * 1000)).toEqual({ concedida: true, esperaMs: 0 });
   });
 
   it("não é burlável: não existe chave por cliente", () => {
-    registrarFalha(AGORA);
-    registrarFalha(AGORA);
-    // Qualquer chamador vê o mesmo atraso — nao ha balde por IP para rotacionar.
-    expect(atrasoDaProximaTentativa(AGORA)).toBe(2000);
+    reservarVaga(AGORA);
+    // Qualquer chamador avanca a MESMA fila — nao ha balde por IP para rotacionar.
+    expect(reservarVaga(AGORA)).toEqual({ concedida: true, esperaMs: 1000 });
   });
 });
 ```
@@ -795,49 +809,62 @@ Expected: FAIL — `Failed to resolve import "@/lib/login-throttle"`.
 
 - [ ] **Step 7: Implementar o freio**
 
-`lib/login-throttle.ts`. Estado global de processo, sem chave: é exatamente isso que torna o freio
-inburlável (não há balde para trocar) e incapaz de trancar o dono de fora (só atrasa).
+`lib/login-throttle.ts`. O ponto central: `reservarVaga` **lê e escreve na mesma passada síncrona**,
+antes de qualquer `await`. É isso que impede que requisições simultâneas leiam o mesmo atraso e
+durmam em paralelo.
 
 ```ts
 const JANELA_MS = 15 * 60 * 1000;
 const TETO_MS = 30_000;
+const ESPERA_MAXIMA_MS = 30_000;
 
-let falhas = 0;
-let ultimaFalhaEm = 0;
+let tentativas = 0;
+let ultimaTentativaEm = 0;
+let proximaLiberacaoEm = 0;
 
-/** Falhas que ainda contam: tudo decai depois de JANELA_MS sem nenhuma falha nova. */
-function falhasVigentes(agora: number): number {
-  if (falhas === 0) return 0;
-  if (agora - ultimaFalhaEm > JANELA_MS) {
-    falhas = 0;
-    return 0;
-  }
-  return falhas;
-}
+export type Vaga = { concedida: true; esperaMs: number } | { concedida: false };
 
-/** Quanto esperar antes de avaliar a proxima tentativa, em ms. */
-export function atrasoDaProximaTentativa(agora: number = Date.now()): number {
-  const n = falhasVigentes(agora);
-  if (n === 0) return 0;
+function atrasoPara(n: number): number {
+  if (n <= 0) return 0;
   return Math.min(1000 * 2 ** (n - 1), TETO_MS);
 }
 
-export function registrarFalha(agora: number = Date.now()): void {
-  falhasVigentes(agora);
-  falhas += 1;
-  ultimaFalhaEm = agora;
+/**
+ * Toma um lugar na fila de tentativas e devolve quanto esperar antes de avaliar a senha.
+ * Conta a TENTATIVA, nao a falha: senao uma rajada simultanea entra inteira antes de
+ * qualquer contador subir.
+ */
+export function reservarVaga(agora: number = Date.now()): Vaga {
+  if (tentativas > 0 && agora - ultimaTentativaEm > JANELA_MS) {
+    tentativas = 0;
+    proximaLiberacaoEm = 0;
+  }
+
+  const inicio = Math.max(agora, proximaLiberacaoEm);
+  const esperaMs = inicio - agora;
+
+  // Recusa em vez de segurar conexao aberta por minutos sob enxurrada.
+  if (esperaMs > ESPERA_MAXIMA_MS) return { concedida: false };
+
+  tentativas += 1;
+  ultimaTentativaEm = agora;
+  proximaLiberacaoEm = inicio + atrasoPara(tentativas);
+
+  return { concedida: true, esperaMs };
 }
 
-export function limparFalhas(): void {
-  falhas = 0;
-  ultimaFalhaEm = 0;
+/** Chamado no login bem-sucedido: quem sabe a senha nao paga pela fila. */
+export function liberar(): void {
+  tentativas = 0;
+  ultimaTentativaEm = 0;
+  proximaLiberacaoEm = 0;
 }
 ```
 
 - [ ] **Step 8: Rodar até passar**
 
 Run: `pnpm test lib/__tests__/login-throttle.test.ts`
-Expected: PASS — 6 testes.
+Expected: PASS — 7 testes.
 
 - [ ] **Step 9: Criar a rota de login**
 
@@ -846,15 +873,21 @@ Expected: PASS — 6 testes.
 ```ts
 import { NextResponse } from "next/server";
 import { criarToken, senhaConfere } from "@/lib/session";
-import { atrasoDaProximaTentativa, registrarFalha, limparFalhas } from "@/lib/login-throttle";
+import { reservarVaga, liberar } from "@/lib/login-throttle";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  // O atraso vem ANTES de avaliar a senha: e ele que torna forca bruta inviavel por tempo.
-  const atraso = atrasoDaProximaTentativa();
-  if (atraso > 0) {
-    await new Promise((resolve) => setTimeout(resolve, atraso));
+  // A vaga e reservada antes de qualquer await: e isso que serializa rajadas simultaneas.
+  const vaga = reservarVaga();
+  if (!vaga.concedida) {
+    return NextResponse.json(
+      { erro: "ocupado", mensagem: "Servidor ocupado. Tente de novo em instantes." },
+      { status: 429 },
+    );
+  }
+  if (vaga.esperaMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, vaga.esperaMs));
   }
 
   const corpo = await req.json().catch(() => ({}));
@@ -867,14 +900,13 @@ export async function POST(req: Request) {
   }
 
   if (!(await senhaConfere(senha, esperada, segredo))) {
-    registrarFalha();
     return NextResponse.json(
       { erro: "senha_invalida", mensagem: "Senha incorreta." },
       { status: 401 },
     );
   }
 
-  limparFalhas();
+  liberar();
   const res = NextResponse.json({ ok: true });
   res.cookies.set("sessao", await criarToken(segredo), {
     httpOnly: true,
