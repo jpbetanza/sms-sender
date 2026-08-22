@@ -54,8 +54,8 @@ gatilho: um webhook ou um relógio.
 1. Login com senha única → cookie `httpOnly` assinado (12h).
 2. `GET /api/groups` → webhook `sms-consultas` → lista com contagem; cache de 60s no servidor.
 3. Usuário escreve a mensagem, escolhe o grupo, confirma no diálogo.
-4. `POST /api/send { group, message }` → app valida → chama `sms-dispatch` com
-   `{ grupo, mensagem, jobId, callbackUrl }`.
+4. `POST /api/send { group, message, fallbackNome? }` → app valida → chama `sms-dispatch` com
+   `{ grupo, mensagem, fallbackNome, jobId, callbackUrl }`.
 5. O n8n responde na hora com `{ ok, jobId }` (nó *Respond to Webhook* no início) e **continua
    executando**. O app registra o job em memória.
 6. A cada contato, o n8n dá POST em `/api/progress` → contador sobe.
@@ -81,7 +81,7 @@ sms_disparos   id · job_id · grupo · mensagem · origem · iniciado_em · fin
 
 ### `SMS — Enviar` (sub-workflow: o motor)
 
-Entrada: `grupo`, `mensagem`, `jobId?`, `callbackUrl?`
+Entrada: `grupo`, `mensagem`, `fallbackNome?`, `jobId?`, `callbackUrl?`
 
 ```
 Execute Workflow Trigger
@@ -132,7 +132,8 @@ sobrepostas do agendador não disparem a mesma linha duas vezes.
 
 Um webhook, Switch por `action`: `grupos` · `historico` · `agendamentos.listar` ·
 `agendamentos.criar` · `agendamentos.cancelar`. A ação `grupos` percorre `sms_grupos`, lê cada
-aba e devolve a contagem; o app guarda em cache por 60s.
+aba e devolve `{ id, label, count, tem_nome, sem_nome }`; o app guarda em cache por 60s.
+`sem_nome` é a contagem de linhas com a célula de nome vazia.
 
 ### Autenticação
 
@@ -198,9 +199,20 @@ O diálogo de confirmação fecha a conta em SMS cobrados:
 
 ### Personalização
 
-`{{nome}}` só é oferecido em grupos cuja aba tenha a coluna (`tem_nome`). Para linhas com a
-célula vazia, a tela tem um campo *"sem nome, usar:"* com padrão `amigo(a)` — remover o
-`{{nome}}` produziria `"Olá , tudo bem?"`.
+`{{nome}}` só é oferecido em grupos cuja aba tenha a coluna (`tem_nome`).
+
+Sempre que a mensagem contiver `{{nome}}`, a tela exibe um campo **obrigatório**
+*"sem nome, usar:"*, preenchido pelo usuário a cada envio — não há padrão embutido, porque o
+texto adequado depende da mensagem. Junto do campo, a tela informa quantos contatos do grupo
+estão com a célula vazia (`sem_nome`, devolvido pela ação `grupos`):
+
+> `sem nome, usar:` [____________]
+> *3 dos 142 contatos estão sem nome preenchido*
+
+Com zero contatos sem nome, o aviso vira *"todos os contatos têm nome — usado só se algum ficar
+em branco"* e o campo continua obrigatório. Exibi-lo condicionalmente à contagem abriria uma
+corrida: o grupo pode ganhar um contato sem nome entre a composição e o disparo, e o motor
+ficaria sem instrução. Deixar `{{nome}}` sem substituto produziria `"Olá , tudo bem?"`.
 
 ### Progresso ao vivo
 
@@ -240,6 +252,8 @@ APP_PUBLIC_URL        base do callbackUrl passado ao n8n
 | Telefone malformado / linha vazia | Descartado em `Normalizar`; o descarte entra no resumo |
 | Contato duplicado na aba | Deduplicado |
 | Mensagem vazia ou só espaços | Bloqueado no cliente e no servidor |
+| Mensagem com `{{nome}}` sem fallback | Rejeitada na validação, no cliente e no servidor |
+| Contato com nome vazio | Recebe o fallback escolhido no envio |
 | Agendar para o passado | Bloqueado; mínimo de 2 minutos à frente |
 | Cancelar agendamento em `enviando` | Recusado: "já começou a enviar" |
 | Container do app reinicia no meio | Barra some, envio continua, resultado no histórico |
