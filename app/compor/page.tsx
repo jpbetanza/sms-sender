@@ -8,6 +8,7 @@ import { now, getLocalTimeZone, type ZonedDateTime } from "@internationalized/da
 import type { Grupo } from "@/lib/schema";
 import { contarSms } from "@/lib/sms";
 import { SeletorGrupo } from "@/components/SeletorGrupo";
+import { EditorContato } from "@/components/EditorContato";
 import { EditorMensagem } from "@/components/EditorMensagem";
 import { ContadorSegmentos } from "@/components/ContadorSegmentos";
 import { FolhaConfirmacao } from "@/components/FolhaConfirmacao";
@@ -17,7 +18,10 @@ import { useJobProgress } from "@/hooks/useJobProgress";
 export default function ComporPage() {
   const [grupos, setGrupos] = useState<Grupo[] | null>(null);
   const [erroGrupos, setErroGrupos] = useState<string | null>(null);
+  const [modo, setModo] = useState<"grupo" | "contato">("grupo");
   const [grupoId, setGrupoId] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [nomeContato, setNomeContato] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [fallbackNome, setFallbackNome] = useState("");
   const [quando, setQuando] = useState<"agora" | "agendar">("agora");
@@ -42,16 +46,22 @@ export default function ComporPage() {
 
   const grupo = useMemo(() => grupos?.find((g) => g.id === grupoId) ?? null, [grupos, grupoId]);
   const usaNome = mensagem.includes("{{nome}}");
-  const contatos = grupo?.count ?? 0;
+  const contatos = modo === "grupo" ? (grupo?.count ?? 0) : telefone.trim().length > 0 ? 1 : 0;
   const totalSms = contarSms(mensagem).segmentos * contatos;
   const podeEnviar =
-    Boolean(grupoId) && mensagem.trim().length > 0 && (!usaNome || fallbackNome.trim().length > 0);
+    modo === "grupo"
+      ? Boolean(grupoId) && mensagem.trim().length > 0 && (!usaNome || fallbackNome.trim().length > 0)
+      : telefone.trim().length > 0 && mensagem.trim().length > 0 && (!usaNome || nomeContato.trim().length > 0);
 
-  const dicaFallback = grupo
-    ? grupo.sem_nome > 0
-      ? `${grupo.sem_nome} de ${grupo.count} contatos estão sem nome preenchido`
-      : "Todos os contatos têm nome — usado só se algum ficar em branco"
-    : null;
+  const dicaFallback =
+    modo === "grupo" && grupo
+      ? grupo.sem_nome > 0
+        ? `${grupo.sem_nome} de ${grupo.count} contatos estão sem nome preenchido`
+        : "Todos os contatos têm nome — usado só se algum ficar em branco"
+      : null;
+
+  const destinoLabel =
+    modo === "grupo" ? (grupo?.label ?? "") : nomeContato.trim() || telefone.trim() || "Contato avulso";
 
   async function confirmar() {
     setEnviando(true);
@@ -62,12 +72,23 @@ export default function ComporPage() {
         const r = await fetch("/api/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            grupo: grupoId,
-            mensagem,
-            fallbackNome: usaNome ? fallbackNome : undefined,
-            jobId: novoJobId,
-          }),
+          body: JSON.stringify(
+            modo === "grupo"
+              ? {
+                  modo: "grupo",
+                  grupo: grupoId,
+                  mensagem,
+                  fallbackNome: usaNome ? fallbackNome : undefined,
+                  jobId: novoJobId,
+                }
+              : {
+                  modo: "contato",
+                  telefone,
+                  nomeContato: nomeContato.trim() || undefined,
+                  mensagem,
+                  jobId: novoJobId,
+                },
+          ),
         });
         const corpo = await r.json().catch(() => ({}));
 
@@ -92,12 +113,23 @@ export default function ComporPage() {
         const r = await fetch("/api/schedules", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            grupo: grupoId,
-            mensagem,
-            fallbackNome: usaNome ? fallbackNome : undefined,
-            agendadoParaMs: dataHora?.toDate().getTime(),
-          }),
+          body: JSON.stringify(
+            modo === "grupo"
+              ? {
+                  modo: "grupo",
+                  grupo: grupoId,
+                  mensagem,
+                  fallbackNome: usaNome ? fallbackNome : undefined,
+                  agendadoParaMs: dataHora?.toDate().getTime(),
+                }
+              : {
+                  modo: "contato",
+                  telefone,
+                  nomeContato: nomeContato.trim() || undefined,
+                  mensagem,
+                  agendadoParaMs: dataHora?.toDate().getTime(),
+                },
+          ),
         });
         if (!r.ok) {
           const corpo = await r.json().catch(() => ({}));
@@ -135,7 +167,7 @@ export default function ComporPage() {
           <div className="text-[11px] font-semibold tracking-[.1em] text-tinta-fraca uppercase">
             {progresso?.status === "concluido" ? "Envio concluído" : "Enviando agora"}
           </div>
-          <p className="text-[16px] font-semibold">{grupo?.label ?? "Disparo"}</p>
+          <p className="text-[16px] font-semibold">{destinoLabel || "Disparo"}</p>
         </div>
 
         <PainelProgresso progresso={progresso} perdido={perdido} iniciadoEm={iniciadoEm} />
@@ -147,6 +179,8 @@ export default function ComporPage() {
               setJobId(null);
               setIniciadoEm(null);
               setMensagem("");
+              setTelefone("");
+              setNomeContato("");
             }}
             className="h-14 rounded-2xl border border-borda bg-superficie text-[16px] font-semibold text-vinho"
           >
@@ -160,15 +194,38 @@ export default function ComporPage() {
   return (
     <div className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col gap-5 px-5 pt-5">
-        <SeletorGrupo grupos={grupos} valor={grupoId} aoMudar={setGrupoId} />
+        <div className="flex gap-1 rounded-2xl bg-preenchimento p-1">
+          {(["grupo", "contato"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setModo(m)}
+              className={`flex-1 rounded-xl py-2.5 text-[14px] ${
+                modo === m
+                  ? "bg-superficie font-semibold shadow-[0_1px_2px_rgba(46,30,30,.10)]"
+                  : "text-tinta-suave"
+              }`}
+            >
+              {m === "grupo" ? "Grupo" : "Contato avulso"}
+            </button>
+          ))}
+        </div>
+
+        {modo === "grupo" ? (
+          <SeletorGrupo grupos={grupos} valor={grupoId} aoMudar={setGrupoId} />
+        ) : (
+          <EditorContato telefone={telefone} aoMudarTelefone={setTelefone} />
+        )}
 
         <EditorMensagem
           valor={mensagem}
           aoMudar={setMensagem}
-          podeUsarNome={Boolean(grupo?.tem_nome)}
-          fallbackNome={fallbackNome}
-          aoMudarFallback={setFallbackNome}
+          podeUsarNome={modo === "grupo" ? Boolean(grupo?.tem_nome) : true}
+          fallbackNome={modo === "grupo" ? fallbackNome : nomeContato}
+          aoMudarFallback={modo === "grupo" ? setFallbackNome : setNomeContato}
           dicaFallback={dicaFallback}
+          rotuloFallback={modo === "grupo" ? "sem nome →" : "nome do contato →"}
+          placeholderFallback={modo === "grupo" ? "responsável" : "nome"}
         />
 
         {contatos > 0 && mensagem.trim().length > 0 && (
@@ -223,16 +280,17 @@ export default function ComporPage() {
         aberta={confirmando}
         aoFechar={() => setConfirmando(false)}
         aoConfirmar={confirmar}
-        grupoLabel={grupo?.label ?? ""}
+        grupoLabel={destinoLabel}
         contatos={contatos}
         mensagem={mensagem}
-        fallbackNome={fallbackNome}
+        fallbackNome={modo === "grupo" ? fallbackNome : nomeContato}
         quando={
           quando === "agora"
             ? "envio imediato"
             : `agendado para ${dataHora?.toDate().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}`
         }
         enviando={enviando}
+        unico={modo === "contato"}
       />
     </div>
   );

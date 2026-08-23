@@ -47,6 +47,46 @@ export const agendarSchema = baseEnvio
   });
 export type AgendarInput = z.infer<typeof agendarSchema>;
 
+/**
+ * Aceita telefone com ou sem +55: digitado a mao, nao vem tratado como o da planilha
+ * (ver decisao da Task 3 sobre nao duplicar a normalizacao que vive no n8n).
+ */
+export const telefoneSchema = z
+  .string()
+  .trim()
+  .min(1, "Informe o telefone")
+  .transform((v) => v.replace(/\D/g, ""))
+  .transform((digitos) => (digitos.length === 10 || digitos.length === 11 ? `55${digitos}` : digitos))
+  .refine((digitos) => digitos.length === 12 || digitos.length === 13, {
+    message: "Telefone inválido. Use DDD + número.",
+  });
+
+const baseEnvioContato = z.object({
+  telefone: telefoneSchema,
+  nomeContato: z.string().trim().max(80).optional(),
+  mensagem: z.string().trim().min(1, "Escreva a mensagem"),
+  jobId: z.string().min(8).optional(),
+});
+
+const exigeNomeContato = (v: z.infer<typeof baseEnvioContato>) =>
+  !v.mensagem.includes("{{nome}}") || Boolean(v.nomeContato?.trim());
+
+const erroNomeContato = {
+  message: "Informe o nome do contato para usar {{nome}} na mensagem",
+  path: ["nomeContato"],
+};
+
+export const enviarContatoSchema = baseEnvioContato.refine(exigeNomeContato, erroNomeContato);
+export type EnviarContatoInput = z.infer<typeof enviarContatoSchema>;
+
+export const agendarContatoSchema = baseEnvioContato
+  .extend({ agendadoParaMs: z.number().int().transform(normalizarParaMinuto) })
+  .refine(exigeNomeContato, erroNomeContato)
+  .refine((v) => v.agendadoParaMs > Date.now() + MINIMO_ADIANTAMENTO_MS, {
+    message: "Agende para pelo menos 2 minutos à frente",
+    path: ["agendadoParaMs"],
+  });
+export type AgendarContatoInput = z.infer<typeof agendarContatoSchema>;
 
 export const agendamentoSchema = z.object({
   // Data Tables do n8n usam identificadores numéricos também para agendamentos.
