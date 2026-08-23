@@ -1,5 +1,5 @@
 import "@/styles/globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import clsx from "clsx";
 
 import { Providers } from "./providers";
@@ -11,22 +11,25 @@ export const metadata: Metadata = {
   description: "Disparo de SMS por grupo",
 };
 
+export const viewport: Viewport = {
+  themeColor: "#F9F6F2",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html suppressHydrationWarning lang="pt-BR">
       <head />
       <body
         suppressHydrationWarning
-        className={clsx(
-          "min-h-screen bg-background font-sans antialiased",
-          fontSans.variable,
-          fontSerif.variable,
-        )}
+        className={clsx("font-sans antialiased", fontSans.variable, fontSerif.variable)}
       >
         <Providers themeProps={{ attribute: "class", defaultTheme: "light" }}>
-          <div className="relative flex flex-col min-h-screen">
+          <div className="casca-app">
+            <main className="flex flex-1 flex-col overflow-x-hidden">{children}</main>
             <Navegacao />
-            <main className="flex-grow">{children}</main>
           </div>
         </Providers>
       </body>

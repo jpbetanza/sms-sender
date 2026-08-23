@@ -2,10 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardBody, CardHeader } from "@heroui/card";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import { KeyRound } from "lucide-react";
+import { Send } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +11,7 @@ export default function LoginPage() {
   const [carregando, setCarregando] = useState(false);
 
   async function entrar() {
+    if (carregando) return;
     setCarregando(true);
     setErro(null);
     try {
@@ -35,29 +33,49 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="flex gap-2">
-          <KeyRound className="size-5 text-primary" />
-          <h1 className="font-serif text-xl">Envio de SMS</h1>
-        </CardHeader>
-        <CardBody className="flex flex-col gap-4">
-          <Input
-            label="Senha"
-            type="password"
-            value={senha}
-            onValueChange={setSenha}
-            isInvalid={Boolean(erro)}
-            errorMessage={erro}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") entrar();
-            }}
-          />
-          <Button color="primary" isLoading={carregando} onPress={entrar}>
-            Entrar
-          </Button>
-        </CardBody>
-      </Card>
+    <div className="flex min-h-dvh flex-col bg-vinho text-[#F9F6F2]">
+      <div className="flex flex-1 flex-col justify-center gap-9 px-7">
+        <div className="flex flex-col gap-2.5">
+          <Send size={28} strokeWidth={1.6} color="var(--areia)" />
+          <h1 className="fonte-titulo text-[40px] leading-[1.05] font-normal">
+            Envio de
+            <br />
+            SMS
+          </h1>
+          <p className="text-[15px] text-[#D9C0C0]">Disparo por grupo</p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1 rounded-2xl border border-[rgba(232,213,196,.3)] bg-[rgba(249,246,242,.08)] px-4 py-3.5">
+            <span className="text-[11px] tracking-[.08em] text-[#D9C0C0] uppercase">Senha</span>
+            <input
+              type="password"
+              value={senha}
+              autoComplete="current-password"
+              onChange={(e) => setSenha(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") entrar();
+              }}
+              className="bg-transparent text-[18px] tracking-[.3em] text-[#F9F6F2] outline-none placeholder:text-[#C9A9A9]"
+              placeholder="••••••••"
+            />
+          </label>
+
+          {erro && <p className="text-[13px] text-[#F3C8C8]">{erro}</p>}
+
+          <button
+            type="button"
+            onClick={entrar}
+            disabled={carregando}
+            className="h-14 rounded-2xl bg-[#F9F6F2] text-[16px] font-semibold text-vinho disabled:opacity-70"
+          >
+            {carregando ? "Entrando…" : "Entrar"}
+          </button>
+        </div>
+      </div>
+      <p className="px-7 pb-10 text-[12px] text-[#C9A9A9]">
+        A sessão fica ativa por 12 horas neste aparelho
+      </p>
     </div>
   );
 }

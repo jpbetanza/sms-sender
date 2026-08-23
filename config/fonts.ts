@@ -1,11 +1,11 @@
-import { Inter as FontSans, Playfair_Display as FontSerif } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 
-export const fontSans = FontSans({
+export const fontSans = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-inter",
 });
 
-export const fontSerif = FontSerif({
+export const fontSerif = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair",
 });

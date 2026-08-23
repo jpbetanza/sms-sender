@@ -7,50 +7,75 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-    --font-sans: "font", sans-serif;
-    --font-mono: "monospace", monospace;
+    --font-sans: var(--font-inter), Inter, sans-serif;
+    --font-serif: var(--font-playfair), "Playfair Display", serif;
 
-    /* Custom Tokens */
-    --color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-card: var(--card);
-    --color-card-foreground: var(--card-foreground);
-    --color-popover: var(--popover);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-muted: var(--muted);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-destructive: var(--destructive);
-    --color-destructive-foreground: var(--destructive-foreground);
-    --color-border: var(--border);
-    --color-ring: var(--ring);
+    /* Superfícies e texto */
+    --color-superficie: var(--superficie);
+    --color-fundo: var(--fundo);
+    --color-tinta: var(--tinta);
+    --color-tinta-suave: var(--tinta-suave);
+    --color-tinta-fraca: var(--tinta-fraca);
+    --color-borda: var(--borda);
+    --color-borda-suave: var(--borda-suave);
+    --color-preenchimento: var(--preenchimento);
+
+    /* Marca e estados */
+    --color-vinho: var(--vinho);
+    --color-vinho-escuro: var(--vinho-escuro);
+    --color-areia: var(--areia);
+    --color-alerta: var(--alerta);
+    --color-erro: var(--erro);
+    --color-sucesso: var(--sucesso);
 }
 
 :root {
-  --accent: #E8D5C4;
-  --accent-foreground: #2E1F1F;
-  --card: #FCFAF8;
-  --card-foreground: #2D1F1F;
-  --popover: #FCFAF8;
-  --popover-foreground: #2D1F1F;
-  --muted: #EDEBE8;
-  --muted-foreground: #6E6560;
-  --destructive: #DC2626;
-  --destructive-foreground: #F9F6F2;
-  --border: #DDD7D0;
-  --ring: #732626;
+  --fundo: #F9F6F2;
+  --superficie: #FFFDFB;
+  --preenchimento: #F2EDE6;
+  --tinta: #2E1E1E;
+  --tinta-suave: #6E6560;
+  --tinta-fraca: #9A8F86;
+  --borda: #E3DCD2;
+  --borda-suave: #F0EAE2;
+  --vinho: #732626;
+  --vinho-escuro: #5c1e1e;
+  --areia: #E8D5C4;
+  --alerta: #B45309;
+  --erro: #B91C1C;
+  --sucesso: #166534;
 }
 
-.dark {
-  --accent: #2D2424;
-  --accent-foreground: #EFECE9;
-  --card: #1C1616;
-  --card-foreground: #EFECE9;
-  --popover: #1C1616;
-  --popover-foreground: #EFECE9;
-  --muted: #2C2525;
-  --muted-foreground: #EFECE9;
-  --destructive: #DC2626;
-  --destructive-foreground: #EFECE9;
-  --border: #2C2525;
-  --ring: #C45454;
+html, body {
+  background: var(--fundo);
+  color: var(--tinta);
+}
+
+/* Definidas na mao: o plugin do HeroUI sobrescreve os utilitarios font-sans/font-serif
+   do Tailwind com a pilha do sistema, entao nao da para depender deles aqui. */
+body {
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+}
+
+.fonte-titulo {
+  font-family: var(--font-playfair), "Playfair Display", Georgia, serif;
+}
+
+/* O app e desenhado para o polegar: a casca imita um aparelho no desktop. */
+.casca-app {
+  width: 100%;
+  max-width: 430px;
+  margin-inline: auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--fundo);
+}
+
+@media (min-width: 640px) {
+  body { background: #EDE9E3; }
+  .casca-app {
+    min-height: 100dvh;
+    box-shadow: 0 24px 48px -16px rgba(46, 30, 30, 0.18);
+  }
 }
