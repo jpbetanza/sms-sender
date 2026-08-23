@@ -1,0 +1,18 @@
+services:
+  sms-sender:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET}
+      N8N_BASE_URL: ${N8N_BASE_URL}
+      N8N_APP_TOKEN: ${N8N_APP_TOKEN}
+      APP_CALLBACK_TOKEN: ${APP_CALLBACK_TOKEN}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL}
+    # Uma replica so. O progresso ao vivo vive na memoria do processo:
+    # duas replicas atras de um balanceador fariam o polling acertar a
+    # instancia errada de forma intermitente.
+    deploy:
+      replicas: 1

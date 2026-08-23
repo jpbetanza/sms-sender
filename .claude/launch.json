@@ -2,9 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "sms-sender-dev",
+      "name": "sms-sender",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "dev"
+      ],
       "port": 3000
     }
   ]
