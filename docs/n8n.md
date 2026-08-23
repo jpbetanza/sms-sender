@@ -90,3 +90,23 @@ Abas referenciadas por `sms_grupos`: `Teste`, `Contatos`, `Vigilia`.
 
 A aba `Teste` (cabeçalhos `nome` e `telefone`, com telefones do próprio dono) é
 criada pelo dono do projeto — não foi criada na Task 7.
+
+## Workflows (Tasks 9 e 10)
+
+| Workflow | ID | Estado |
+|---|---|---|
+| `SMS — Enviar` (motor) | `Fbfh7IxDLO5MH0Hh` | **não publicado** — publish bloqueado pelo classificador |
+| `SMS — Webhook` (`POST /webhook/sms-dispatch`) | `D7j3aHaszJf6j10K` | não publicado |
+| `SMS — Consultas` (`POST /webhook/sms-consultas`) | `DdAeVJdOWOvPvKW3` | **publicado e testado** |
+| `SMS — Agendador` (a cada 1 min) | `kNf80T1y0ZSO6V4T` | não publicado (de propósito) |
+
+Credenciais: `App SMS Token` (`UVCzLtlNgtNuO5Pc`) anexada nos dois webhooks — o nó Webhook aceita
+credencial via MCP, ao contrário do HTTP Request.
+
+### Pendências do dono
+1. Anexar credenciais nos 4 nós HTTP de `SMS — Enviar`: `Enviar SMS` → `Zenvia API Key`;
+   `Avisar Inicio` / `Avisar Progresso` / `Avisar Fim` → `App Callback Token`.
+2. Publicar `SMS — Enviar` e `SMS — Webhook`.
+3. A aba `Contatos` da planilha não pôde ser lida (as outras duas leram). Conferir o nome real
+   da aba e corrigir a coluna `aba` da linha `encontristas` em `sms_grupos`.
+4. Aba `Teste` tem 1 contato; o plano prevê 2.
