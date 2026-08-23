@@ -62,6 +62,17 @@ describe("agendarSchema", () => {
     });
     expect(r.success).toBe(false);
   });
+
+  it("salva o horário no início do minuto selecionado", () => {
+    const agendadoParaMs = daquiA(10 * 60 * 1000) + 47_826;
+    const resultado = agendarSchema.parse({
+      grupo: "encontristas",
+      mensagem: "Reunião",
+      agendadoParaMs,
+    });
+
+    expect(resultado.agendadoParaMs % 60_000).toBe(0);
+  });
 });
 
 describe("agendamentoSchema", () => {
@@ -99,6 +110,7 @@ describe("progressoDisparoSchema", () => {
       progressoDisparoSchema.safeParse({ ...base, status: "enviando", processados: -1 }).success,
     ).toBe(false);
   });
+
 });
 
 describe("disparoSchema", () => {

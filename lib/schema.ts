@@ -33,8 +33,13 @@ export type EnviarInput = z.infer<typeof enviarSchema>;
 
 const MINIMO_ADIANTAMENTO_MS = 2 * 60 * 1000;
 
+/** A interface agenda por minuto; descartamos segundos residuais do seletor. */
+export function normalizarParaMinuto(ms: number): number {
+  return Math.floor(ms / 60_000) * 60_000;
+}
+
 export const agendarSchema = baseEnvio
-  .extend({ agendadoParaMs: z.number().int() })
+  .extend({ agendadoParaMs: z.number().int().transform(normalizarParaMinuto) })
   .refine(exigeFallback, erroFallback)
   .refine((v) => v.agendadoParaMs > Date.now() + MINIMO_ADIANTAMENTO_MS, {
     message: "Agende para pelo menos 2 minutos à frente",
