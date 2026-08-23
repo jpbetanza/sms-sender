@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send } from "lucide-react";
+import pequenaViaIcon from "@/app/icon.png";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,9 +36,15 @@ export default function LoginPage() {
     <div className="flex min-h-dvh flex-col bg-vinho text-[#F9F6F2]">
       <div className="flex flex-1 flex-col justify-center gap-9 px-7">
         <div className="flex flex-col gap-2.5">
-          <Send size={28} strokeWidth={1.6} color="var(--areia)" />
+          <img
+            src={pequenaViaIcon.src}
+            alt="PequenaVia SMS"
+            width={88}
+            height={88}
+            className="rounded-3xl"
+          />
           <h1 className="fonte-titulo text-[40px] leading-[1.05] font-normal">
-            Envio de
+            PequenaVia
             <br />
             SMS
           </h1>

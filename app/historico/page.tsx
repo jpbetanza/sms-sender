@@ -30,9 +30,7 @@ export default function HistoricoPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex flex-col gap-3.5 px-5 pt-2 pb-4">
-        <h1 className="fonte-titulo text-[30px] font-normal">Histórico</h1>
-
+      <div className="flex flex-col gap-3.5 px-5 pt-5 pb-4">
         {resumo && (
           <div className="flex gap-5 rounded-2xl bg-preenchimento px-4 py-3.5">
             <div className="flex flex-col gap-0.5">

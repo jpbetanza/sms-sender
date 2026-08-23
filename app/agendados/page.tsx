@@ -74,11 +74,7 @@ export default function AgendadosPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="px-5 pt-2 pb-5">
-        <h1 className="fonte-titulo text-[30px] font-normal">Agendados</h1>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-5 px-5 pb-6">
+      <div className="flex flex-1 flex-col gap-5 px-5 pt-5 pb-6">
         {!itens && <div className="h-28 animate-pulse rounded-[18px] bg-preenchimento" />}
 
         {itens?.length === 0 && (

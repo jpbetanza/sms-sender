@@ -135,7 +135,7 @@ export default function ComporPage() {
           <div className="text-[11px] font-semibold tracking-[.1em] text-tinta-fraca uppercase">
             {progresso?.status === "concluido" ? "Envio concluído" : "Enviando agora"}
           </div>
-          <h1 className="fonte-titulo text-[30px] font-normal">{grupo?.label ?? "Disparo"}</h1>
+          <p className="text-[16px] font-semibold">{grupo?.label ?? "Disparo"}</p>
         </div>
 
         <PainelProgresso progresso={progresso} perdido={perdido} iniciadoEm={iniciadoEm} />
@@ -159,11 +159,7 @@ export default function ComporPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="px-5 pt-2 pb-4">
-        <h1 className="fonte-titulo text-[30px] font-normal tracking-[-.01em]">Novo comunicado</h1>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-5 px-5">
+      <div className="flex flex-1 flex-col gap-5 px-5 pt-5">
         <SeletorGrupo grupos={grupos} valor={grupoId} aoMudar={setGrupoId} />
 
         <EditorMensagem
