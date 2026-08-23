@@ -44,7 +44,8 @@ export type AgendarInput = z.infer<typeof agendarSchema>;
 
 
 export const agendamentoSchema = z.object({
-  id: z.string(),
+  // Data Tables do n8n usam identificadores numéricos também para agendamentos.
+  id: z.coerce.string(),
   grupo: z.string(),
   mensagem: z.string(),
   agendado_para: z.string(),
@@ -63,9 +64,11 @@ export const disparoSchema = z.object({
   origem: z.enum(["imediato", "agendado"]),
   iniciado_em: z.string(),
   finalizado_em: z.string().nullable(),
-  total: z.number().int(),
-  enviados: z.number().int(),
-  falhas: z.number().int(),
+  // Linhas históricas iniciadas manualmente antes da consolidação podem não
+  // ter contagens. A interface as exibe como zero, sem bloquear a lista toda.
+  total: z.number().int().nullable().transform((valor) => valor ?? 0),
+  enviados: z.number().int().nullable().transform((valor) => valor ?? 0),
+  falhas: z.number().int().nullable().transform((valor) => valor ?? 0),
 });
 export type Disparo = z.infer<typeof disparoSchema>;
 

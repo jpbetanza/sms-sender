@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { agendarSchema, disparoSchema, enviarSchema, progressoDisparoSchema } from "@/lib/schema";
+import {
+  agendamentoSchema,
+  agendarSchema,
+  disparoSchema,
+  enviarSchema,
+  progressoDisparoSchema,
+} from "@/lib/schema";
 
 describe("enviarSchema", () => {
   it("aceita envio simples", () => {
@@ -58,6 +64,21 @@ describe("agendarSchema", () => {
   });
 });
 
+describe("agendamentoSchema", () => {
+  it("normaliza o identificador numérico retornado pelo Data Table do n8n", () => {
+    const resultado = agendamentoSchema.parse({
+      id: 1,
+      grupo: "Teste",
+      mensagem: "Olá",
+      agendado_para: "2026-08-23T14:30:06.826Z",
+      agendado_para_ms: 1787495406826,
+      status: "pendente",
+    });
+
+    expect(resultado.id).toBe("1");
+  });
+});
+
 describe("progressoDisparoSchema", () => {
   const base = { jobId: "j1", total: 10, processados: 4, enviados: 3, falhas: 1 };
 
@@ -96,5 +117,22 @@ describe("disparoSchema", () => {
     });
 
     expect(resultado.id).toBe("5");
+  });
+
+  it("normaliza contagens ausentes de linhas históricas antigas", () => {
+    const resultado = disparoSchema.parse({
+      id: 2,
+      job_id: "manual-1",
+      grupo: "teste",
+      mensagem: "Teste manual",
+      origem: "imediato",
+      iniciado_em: "2026-08-22T10:35:08.349-03:00",
+      finalizado_em: null,
+      total: null,
+      enviados: null,
+      falhas: null,
+    });
+
+    expect(resultado).toMatchObject({ total: 0, enviados: 0, falhas: 0 });
   });
 });
