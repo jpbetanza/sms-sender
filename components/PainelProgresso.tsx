@@ -46,7 +46,7 @@ export function PainelProgresso({
     <div className="flex flex-col gap-7">
       <div className="flex flex-col gap-3.5">
         <div className="flex items-baseline gap-2">
-          <span className="fonte-titulo text-[56px] leading-none text-vinho">
+          <span className="fonte-titulo-numero text-[56px] leading-none text-vinho">
             {concluido ? enviados : processados}
           </span>
           <span className="text-[16px] text-tinta-suave">

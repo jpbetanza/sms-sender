@@ -16,7 +16,7 @@ export function ContadorSegmentos({ texto, contatos }: { texto: string; contatos
           {contatos} {contatos === 1 ? "contato" : "contatos"} × {c.segmentos}{" "}
           {c.segmentos === 1 ? "segmento" : "segmentos"}
         </span>
-        <span className="fonte-titulo text-[22px] text-tinta">{totalSms} SMS</span>
+        <span className="fonte-titulo-numero text-[22px] text-tinta">{totalSms} SMS</span>
       </div>
       <div className="flex h-[34px] items-end gap-1">
         {alturas.map((h, i) => (

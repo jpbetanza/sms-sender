@@ -61,6 +61,14 @@ body {
   font-family: var(--font-playfair), "Playfair Display", Georgia, serif;
 }
 
+/* Numeros de dados (contagens, horarios) usam a mesma familia do titulo, mas com
+   zero cortado quando a fonte suporta: sem isso, "0" fica identico a "o" minusculo
+   na Playfair, e um contador zerado vira ilegivel. */
+.fonte-titulo-numero {
+  font-family: var(--font-playfair), "Playfair Display", Georgia, serif;
+  font-variant-numeric: slashed-zero tabular-nums;
+}
+
 /* O app e desenhado para o polegar: a casca imita um aparelho no desktop. */
 .casca-app {
   width: 100%;

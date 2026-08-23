@@ -42,6 +42,7 @@ export function EditorMensagem({
           className="resize-none bg-transparent text-[16px] leading-[1.55] text-tinta outline-none placeholder:text-tinta-fraca"
         />
 
+        {(podeUsarNome || usaNome) && (
         <div className="flex flex-wrap items-center gap-2 border-t border-borda-suave pt-3">
           {podeUsarNome && (
             <button
@@ -71,6 +72,7 @@ export function EditorMensagem({
             )
           )}
         </div>
+        )}
       </div>
 
       {usaNome && dicaFallback && (

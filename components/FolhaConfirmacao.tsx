@@ -84,7 +84,7 @@ export function FolhaConfirmacao({
             <span className="text-[13px] text-tinta-suave">
               {contatos} × {c.segmentos} {c.segmentos === 1 ? "segmento" : "segmentos"}
             </span>
-            <span className="fonte-titulo text-[22px]">{totalSms} SMS</span>
+            <span className="fonte-titulo-numero text-[22px]">{totalSms} SMS</span>
           </div>
         </div>
 

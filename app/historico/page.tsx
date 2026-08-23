@@ -39,7 +39,7 @@ export default function HistoricoPage() {
               <span className="text-[11px] tracking-[.06em] text-tinta-fraca uppercase">
                 Este mês
               </span>
-              <span className="fonte-titulo text-[22px]">
+              <span className="fonte-titulo-numero text-[22px]">
                 {resumo.enviados.toLocaleString("pt-BR")} SMS
               </span>
             </div>
@@ -49,7 +49,7 @@ export default function HistoricoPage() {
                 Falhas
               </span>
               <span
-                className="fonte-titulo text-[22px]"
+                className="fonte-titulo-numero text-[22px]"
                 style={{ color: resumo.falhas > 0 ? "var(--erro)" : undefined }}
               >
                 {resumo.falhas}
@@ -73,7 +73,7 @@ export default function HistoricoPage() {
           return (
             <div key={d.id} className="flex gap-3.5 border-b border-[#EBE4DA] py-4">
               <div className="flex w-11 flex-none flex-col items-center pt-0.5">
-                <span className="fonte-titulo text-[20px] leading-none">
+                <span className="fonte-titulo-numero text-[20px] leading-none">
                   {quando.toLocaleDateString("pt-BR", { timeZone: FUSO, day: "2-digit" })}
                 </span>
                 <span className="text-[11px] tracking-[.06em] text-tinta-fraca uppercase">

@@ -104,7 +104,7 @@ export default function AgendadosPage() {
                     />
                     <span className="truncate text-[16px] font-semibold">{a.grupo}</span>
                   </div>
-                  <span className="flex-none fonte-titulo text-[18px]">
+                  <span className="flex-none fonte-titulo-numero text-[18px]">
                     {new Date(a.agendado_para_ms).toLocaleTimeString("pt-BR", {
                       timeZone: FUSO,
                       hour: "2-digit",

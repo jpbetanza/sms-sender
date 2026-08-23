@@ -26,6 +26,11 @@ export function SeletorGrupo({
               disabled={indisponivel}
               onClick={() => aoMudar(g.id)}
               aria-pressed={escolhido}
+              aria-label={
+                indisponivel
+                  ? `${g.label}, indisponível: ${g.erro}`
+                  : `${g.label}, ${g.count} ${g.count === 1 ? "contato" : "contatos"}`
+              }
               className="flex flex-col gap-0.5 rounded-2xl px-3.5 py-2.5 text-left transition-colors disabled:cursor-not-allowed"
               style={
                 escolhido
@@ -46,7 +51,7 @@ export function SeletorGrupo({
                   color: escolhido ? "rgba(249,246,242,.75)" : indisponivel ? "var(--erro)" : "var(--tinta-fraca)",
                 }}
               >
-                {indisponivel ? g.erro : `${g.count} contatos`}
+                {indisponivel ? g.erro : `${g.count} ${g.count === 1 ? "contato" : "contatos"}`}
               </span>
             </button>
           );
