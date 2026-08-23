@@ -17,6 +17,7 @@ const baseEnvio = z.object({
   grupo: z.string().min(1, "Escolha um grupo"),
   mensagem: z.string().trim().min(1, "Escreva a mensagem"),
   fallbackNome: z.string().trim().min(1).optional(),
+  jobId: z.string().min(8).optional(),
 });
 
 const exigeFallback = (v: z.infer<typeof baseEnvio>) =>
