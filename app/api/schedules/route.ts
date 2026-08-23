@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { chamarN8n } from "@/lib/n8n";
-import { agendarSchema, agendamentoSchema } from "@/lib/schema";
+import { agendarSchema, agendarContatoSchema, agendamentoSchema } from "@/lib/schema";
 
 export const runtime = "nodejs";
 
@@ -19,22 +19,43 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const corpo = await req.json().catch(() => null);
-  const parsed = agendarSchema.safeParse(corpo);
-  if (!parsed.success) {
-    return NextResponse.json({ erro: "invalido", detalhes: parsed.error.flatten() }, { status: 400 });
-  }
+  const modoContato =
+    Boolean(corpo) && typeof corpo === "object" && (corpo as { modo?: unknown }).modo === "contato";
 
-  const { grupo, mensagem, fallbackNome, agendadoParaMs } = parsed.data;
+  let payload: Record<string, unknown>;
 
-  try {
-    const criado = await chamarN8n<unknown>("sms-consultas", {
+  if (modoContato) {
+    const parsed = agendarContatoSchema.safeParse(corpo);
+    if (!parsed.success) {
+      return NextResponse.json({ erro: "invalido", detalhes: parsed.error.flatten() }, { status: 400 });
+    }
+    const { telefone, nomeContato, mensagem, agendadoParaMs } = parsed.data;
+    payload = {
+      action: "agendamentos.criar",
+      telefone,
+      nome_contato: nomeContato ?? "",
+      mensagem,
+      agendado_para_ms: agendadoParaMs,
+      agendado_para: new Date(agendadoParaMs).toISOString(),
+    };
+  } else {
+    const parsed = agendarSchema.safeParse(corpo);
+    if (!parsed.success) {
+      return NextResponse.json({ erro: "invalido", detalhes: parsed.error.flatten() }, { status: 400 });
+    }
+    const { grupo, mensagem, fallbackNome, agendadoParaMs } = parsed.data;
+    payload = {
       action: "agendamentos.criar",
       grupo,
       mensagem,
       fallback_nome: fallbackNome ?? "",
       agendado_para_ms: agendadoParaMs,
       agendado_para: new Date(agendadoParaMs).toISOString(),
-    });
+    };
+  }
+
+  try {
+    const criado = await chamarN8n<unknown>("sms-consultas", payload);
     return NextResponse.json(criado, { status: 201 });
   } catch {
     return NextResponse.json(

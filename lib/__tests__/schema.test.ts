@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   agendamentoSchema,
+  agendarContatoSchema,
   agendarSchema,
   disparoSchema,
+  enviarContatoSchema,
   enviarSchema,
   progressoDisparoSchema,
+  telefoneSchema,
 } from "@/lib/schema";
 
 describe("enviarSchema", () => {
@@ -72,6 +75,76 @@ describe("agendarSchema", () => {
     });
 
     expect(resultado.agendadoParaMs % 60_000).toBe(0);
+  });
+});
+
+describe("telefoneSchema", () => {
+  it("aceita telefone com DDD e sem 55, adicionando o codigo do pais", () => {
+    expect(telefoneSchema.parse("(11) 98888-7777")).toBe("5511988887777");
+  });
+
+  it("aceita telefone ja com 55", () => {
+    expect(telefoneSchema.parse("+55 11 98888-7777")).toBe("5511988887777");
+  });
+
+  it("aceita fixo com 8 digitos", () => {
+    expect(telefoneSchema.parse("1133334444")).toBe("551133334444");
+  });
+
+  it("recusa numero curto demais", () => {
+    expect(telefoneSchema.safeParse("12345").success).toBe(false);
+  });
+
+  it("recusa telefone vazio", () => {
+    expect(telefoneSchema.safeParse("   ").success).toBe(false);
+  });
+});
+
+describe("enviarContatoSchema", () => {
+  it("aceita envio simples para um telefone", () => {
+    const r = enviarContatoSchema.safeParse({ telefone: "11988887777", mensagem: "Olá!" });
+    expect(r.success).toBe(true);
+  });
+
+  it("exige nome do contato quando a mensagem usa {{nome}}", () => {
+    const r = enviarContatoSchema.safeParse({ telefone: "11988887777", mensagem: "Olá {{nome}}" });
+    expect(r.success).toBe(false);
+  });
+
+  it("aceita {{nome}} quando o nome do contato vem junto", () => {
+    const r = enviarContatoSchema.safeParse({
+      telefone: "11988887777",
+      mensagem: "Olá {{nome}}",
+      nomeContato: "Maria",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("recusa telefone invalido", () => {
+    const r = enviarContatoSchema.safeParse({ telefone: "123", mensagem: "Olá" });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("agendarContatoSchema", () => {
+  const daquiA = (ms: number) => Date.now() + ms;
+
+  it("aceita agendamento a 10 minutos para um telefone", () => {
+    const r = agendarContatoSchema.safeParse({
+      telefone: "11988887777",
+      mensagem: "Reunião",
+      agendadoParaMs: daquiA(10 * 60 * 1000),
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("recusa agendamento a menos de 2 minutos", () => {
+    const r = agendarContatoSchema.safeParse({
+      telefone: "11988887777",
+      mensagem: "Reunião",
+      agendadoParaMs: daquiA(30 * 1000),
+    });
+    expect(r.success).toBe(false);
   });
 });
 

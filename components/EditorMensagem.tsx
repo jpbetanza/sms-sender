@@ -10,6 +10,8 @@ export function EditorMensagem({
   fallbackNome,
   aoMudarFallback,
   dicaFallback,
+  rotuloFallback = "sem nome →",
+  placeholderFallback = "responsável",
 }: {
   valor: string;
   aoMudar: (v: string) => void;
@@ -17,6 +19,8 @@ export function EditorMensagem({
   fallbackNome: string;
   aoMudarFallback: (v: string) => void;
   dicaFallback: string | null;
+  rotuloFallback?: string;
+  placeholderFallback?: string;
 }) {
   const c = contarSms(valor);
   const usaNome = valor.includes("{{nome}}");
@@ -55,11 +59,11 @@ export function EditorMensagem({
           )}
           {usaNome ? (
             <label className="flex flex-1 items-center gap-2 text-[12px] text-tinta-fraca">
-              sem nome →
+              {rotuloFallback}
               <input
                 value={fallbackNome}
                 onChange={(e) => aoMudarFallback(e.target.value)}
-                placeholder="responsável"
+                placeholder={placeholderFallback}
                 required
                 className="min-w-0 flex-1 rounded-lg bg-preenchimento px-2 py-1 text-[13px] text-tinta outline-none placeholder:text-tinta-fraca"
               />

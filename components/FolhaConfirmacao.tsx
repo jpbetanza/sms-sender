@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Users } from "lucide-react";
+import { Users, User } from "lucide-react";
 import { contarSms } from "@/lib/sms";
 
 export function FolhaConfirmacao({
@@ -14,6 +14,7 @@ export function FolhaConfirmacao({
   fallbackNome,
   quando,
   enviando,
+  unico = false,
 }: {
   aberta: boolean;
   aoFechar: () => void;
@@ -24,6 +25,8 @@ export function FolhaConfirmacao({
   fallbackNome: string;
   quando: string;
   enviando: boolean;
+  /** Contato avulso: troca o icone de grupo por pessoa e nao pluraliza "contato". */
+  unico?: boolean;
 }) {
   useEffect(() => {
     if (!aberta) return;
@@ -61,12 +64,12 @@ export function FolhaConfirmacao({
         <div className="flex flex-col gap-3.5">
           <div className="flex items-center gap-2.5">
             <span className="flex size-9 items-center justify-center rounded-xl bg-vinho text-[#F9F6F2]">
-              <Users size={18} />
+              {unico ? <User size={18} /> : <Users size={18} />}
             </span>
             <span className="flex flex-col">
               <span className="text-[16px] font-semibold">{grupoLabel}</span>
               <span className="text-[13px] text-tinta-fraca">
-                {contatos} contatos · {quando}
+                {unico ? quando : `${contatos} ${contatos === 1 ? "contato" : "contatos"} · ${quando}`}
               </span>
             </span>
           </div>

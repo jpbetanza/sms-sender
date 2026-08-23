@@ -125,3 +125,30 @@ A tabela `sms_grupos` **não é mais usada** e pode ser apagada. Cada aba da pla
 
 Descoberto na primeira execução: a aba `Contatos` não existe mais na planilha — só `Teste` e
 `Vigilia`. O mapeamento antigo guardava o nome em cache e escondia isso.
+
+## Contato avulso (2026-08-23)
+
+Envio para um telefone digitado na hora, sem passar pela planilha. Mesmo motor, mesmo histórico —
+só entra por um caminho diferente logo no início de `SMS — Enviar`.
+
+- **App:** `POST /api/send` e `POST /api/schedules` aceitam `{ modo: "contato", telefone,
+  nomeContato?, mensagem }` além do formato de grupo existente. `lib/schema.ts` normaliza o
+  telefone digitado (com ou sem `+55`) antes de mandar para o n8n.
+- **`SMS — Enviar`:** `Receber Pedido` ganhou `telefone` e `nomeContato`. Logo depois de
+  `Resolver Grupo`, o nó `Tem Telefone Avulso?` decide: telefone preenchido pula `Ler Contatos`
+  (Google Sheets) e vai para `Contato Avulso` (Code), que emula uma linha de planilha
+  `{telefone, nome}` — o resto do motor (normalização, Zenvia, `Marcar Sucesso`/`Falha`,
+  consolidação) é o mesmo para os dois caminhos. `Normalizar Contatos` rotula o disparo como
+  `Avulso · <telefone>` no histórico quando não há grupo. O nó `Tem Linha?`, antes de
+  `Registrar Envio`, impede que um contato avulso (sem linha de planilha) dispare uma escrita no
+  Google Sheets.
+- **`SMS — Webhook`:** `Executar Envio` repassa `telefone`/`nomeContato` do corpo do webhook.
+- **`sms_agendados`:** ganhou as colunas `telefone` e `nome_contato` (strings, vazias para
+  agendamentos de grupo). `SMS — Consultas` · `Criar Agendamento` grava os dois campos e usa
+  `Avulso · <telefone>` como `grupo` quando não há grupo, só para exibição na tela de agendados.
+- **`SMS — Agendador`:** `Executar Envio` repassa `telefone`/`nome_contato` da linha vencida para
+  o motor, do mesmo jeito que já repassava `grupo`/`fallback_nome`.
+
+Discriminador: **presença de `telefone` não vazio**, nunca ausência de `grupo` — um agendamento
+avulso chega ao motor com `grupo` já preenchido (`Avulso · <telefone>`, escrito na criação do
+agendamento), então checar "grupo vazio" quebraria esse caminho.

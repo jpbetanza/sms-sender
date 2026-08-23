@@ -1,28 +1,38 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { enviarSchema } from "@/lib/schema";
+import { enviarSchema, enviarContatoSchema } from "@/lib/schema";
 import { chamarN8n, N8nIndisponivel } from "@/lib/n8n";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   const corpo = await req.json().catch(() => null);
-  const parsed = enviarSchema.safeParse(corpo);
-  if (!parsed.success) {
-    return NextResponse.json({ erro: "invalido", detalhes: parsed.error.flatten() }, { status: 400 });
+  const modoContato =
+    Boolean(corpo) && typeof corpo === "object" && (corpo as { modo?: unknown }).modo === "contato";
+
+  let jobId: string;
+  let payload: Record<string, unknown>;
+
+  if (modoContato) {
+    const parsed = enviarContatoSchema.safeParse(corpo);
+    if (!parsed.success) {
+      return NextResponse.json({ erro: "invalido", detalhes: parsed.error.flatten() }, { status: 400 });
+    }
+    const { telefone, nomeContato, mensagem } = parsed.data;
+    jobId = parsed.data.jobId ?? randomUUID();
+    payload = { telefone, nomeContato: nomeContato ?? "", mensagem, jobId, origem: "imediato" };
+  } else {
+    const parsed = enviarSchema.safeParse(corpo);
+    if (!parsed.success) {
+      return NextResponse.json({ erro: "invalido", detalhes: parsed.error.flatten() }, { status: 400 });
+    }
+    const { grupo, mensagem, fallbackNome } = parsed.data;
+    jobId = parsed.data.jobId ?? randomUUID();
+    payload = { grupo, mensagem, fallbackNome: fallbackNome ?? "", jobId, origem: "imediato" };
   }
 
-  const { grupo, mensagem, fallbackNome } = parsed.data;
-  const jobId = parsed.data.jobId ?? randomUUID();
-
   try {
-    await chamarN8n("sms-dispatch", {
-      grupo,
-      mensagem,
-      fallbackNome: fallbackNome ?? "",
-      jobId,
-      origem: "imediato",
-    });
+    await chamarN8n("sms-dispatch", payload);
     return NextResponse.json({ ok: true, jobId });
   } catch (e) {
     if (e instanceof N8nIndisponivel) {
