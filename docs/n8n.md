@@ -110,3 +110,18 @@ credencial via MCP, ao contrário do HTTP Request.
 3. A aba `Contatos` da planilha não pôde ser lida (as outras duas leram). Conferir o nome real
    da aba e corrigir a coluna `aba` da linha `encontristas` em `sms_grupos`.
 4. Aba `Teste` tem 1 contato; o plano prevê 2.
+
+## Grupos passaram a vir da planilha (2026-08-22)
+
+A tabela `sms_grupos` **não é mais usada** e pode ser apagada. Cada aba da planilha é um grupo.
+
+- `SMS — Consultas` · ação `grupos`: `Listar Abas` (HTTP → API do Sheets) → `Extrair Abas` →
+  loop lendo cada aba → `Contar`. Aba sem coluna `telefone`, vazia, ou ilegível volta com `erro`
+  preenchido e fica desabilitada na tela.
+- `SMS — Enviar` · `Resolver Grupo` virou um Set: `aba = {{ $json.grupo }}`. O nome do grupo
+  **é** o nome da aba.
+- Contrato de resposta inalterado (`id, label, count, tem_nome, sem_nome, erro`), então a
+  interface não precisou mudar.
+
+Descoberto na primeira execução: a aba `Contatos` não existe mais na planilha — só `Teste` e
+`Vigilia`. O mapeamento antigo guardava o nome em cache e escondia isso.
