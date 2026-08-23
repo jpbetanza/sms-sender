@@ -17,7 +17,7 @@ describe("middleware", () => {
   });
 
   it("libera os caminhos públicos exatos sem cookie", async () => {
-    for (const p of ["/login", "/api/login", "/api/progress"]) {
+    for (const p of ["/login", "/api/login", "/api/login"]) {
       const res = await middleware(req(p));
       expect(res.status).toBe(200);
       // NextResponse.next() não redireciona nem bloqueia.

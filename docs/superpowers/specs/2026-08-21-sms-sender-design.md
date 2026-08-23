@@ -30,7 +30,7 @@ com acompanhamento do progresso e histórico.
 | Reenvio | Todos, sempre | Cada disparo é um comunicado novo, não uma campanha a completar |
 | Agendamento | Apenas pontual | Cobre o caso real (aviso de evento) sem peso de recorrência |
 | Atraso do agendador | Envia se < 1h; senão marca perdido | Aviso muito atrasado é pior que aviso nenhum |
-| Hospedagem | VPS própria, Docker, instância única | Permite progresso ao vivo com estado em memória |
+| Hospedagem | **Vercel** (revisto em 2026-08-22) | Decisão do dono. Obrigou o progresso a sair da memória do app |
 
 ## Arquitetura
 
@@ -292,9 +292,22 @@ aba com dois telefones do próprio dono. Envio real, Zenvia real, antes de qualq
 - **Agendamento recorrente.** Decidido como pontual apenas.
 - **Login por usuário / auditoria de quem disparou.** Senha única basta para o uso atual.
 
-## Restrição conhecida
+## Revisão de 2026-08-22 — Vercel
 
-O store de progresso em memória é correto **porque a hospedagem é de instância única**. Se um dia
-houver duas réplicas atrás de um balanceador, o polling passará a acertar a instância errada de
-forma intermitente. Nesse cenário, o progresso precisa migrar para armazenamento compartilhado
-(ou ser lido de `sms_disparos`).
+A hospedagem mudou de VPS para Vercel, e isso invalidou o store de progresso em memória: em
+serverless não há um processo só, então o callback do n8n cairia numa instância enquanto o
+navegador perguntaria a outra.
+
+**O progresso passou a viver no n8n.** O motor grava `processados` na própria linha de
+`sms_disparos` conforme envia, e a tela pergunta ao n8n a cada 2 segundos pela ação
+`disparo.status`. Qualquer instância responde a mesma coisa.
+
+Isso removeu peças em vez de acrescentar: sumiram `/api/progress`, `lib/jobs.ts`, o
+`APP_CALLBACK_TOKEN`, o `APP_PUBLIC_URL` e os três nós de callback do motor. O n8n não chama
+mais o app em nenhum momento — a comunicação passou a ser em uma direção só.
+
+**Grupos também mudaram de fonte.** A tabela `sms_grupos` foi abandonada: cada aba da planilha é
+um grupo, com o nome real e a contagem lida na hora. Aba sem coluna `telefone`, vazia ou
+ilegível aparece marcada como indisponível. A primeira execução disso revelou que a aba
+`Contatos` não existe mais na planilha — o mapeamento antigo guardava o nome em cache e
+escondia o fato.

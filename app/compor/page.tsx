@@ -30,7 +30,7 @@ export default function ComporPage() {
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
-  const { job, perdido } = useJobProgress(jobId);
+  const { progresso, perdido } = useJobProgress(jobId);
 
   useEffect(() => {
     fetch("/api/groups")
@@ -172,7 +172,7 @@ export default function ComporPage() {
         </CardBody>
       </Card>
 
-      <PainelProgresso job={job} perdido={perdido} />
+      <PainelProgresso progresso={progresso} perdido={perdido} aguardando={Boolean(jobId)} />
 
       <DialogoConfirmacao
         aberto={confirmando}

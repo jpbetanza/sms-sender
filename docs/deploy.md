@@ -1,8 +1,8 @@
-# Deploy
-
-Container único na VPS, ao lado do n8n.
+# Deploy — Vercel
 
 ## Variáveis de ambiente
+
+Quatro, todas em *Project Settings → Environment Variables*:
 
 | Variável | O que é |
 |---|---|
@@ -10,22 +10,29 @@ Container único na VPS, ao lado do n8n.
 | `SESSION_SECRET` | Segredo que assina o cookie de sessão (`openssl rand -base64 32`) |
 | `N8N_BASE_URL` | `https://webhooks.aotomatika.com.br` |
 | `N8N_APP_TOKEN` | Valor do header `X-APP-TOKEN`, igual à credencial `App SMS Token` no n8n |
-| `APP_CALLBACK_TOKEN` | Valor do header `X-CALLBACK-TOKEN`, igual à credencial `App Callback Token` |
-| `APP_PUBLIC_URL` | URL pública do app |
 
-## Duas coisas que quebram em silêncio se estiverem erradas
+Não há mais `APP_CALLBACK_TOKEN` nem `APP_PUBLIC_URL`: o n8n não chama mais o app.
 
-**`APP_PUBLIC_URL` precisa ser alcançável a partir do n8n**, não do seu navegador. É para
-onde vão os callbacks de progresso. Com `localhost`, o envio funciona e a barra nunca anda.
+## Por que isso funciona em serverless
 
-**Uma réplica só.** O progresso ao vivo é um `Map` na memória do processo. Com duas réplicas
-atrás de um balanceador, o polling do navegador acerta a instância errada de forma
-intermitente — o pior tipo de bug. Se um dia precisar escalar, o progresso migra para
-armazenamento compartilhado ou passa a ser lido de `sms_disparos`.
+O progresso do envio **não vive na memória do app**. O motor grava `processados` na própria
+linha de `sms_disparos` conforme envia, e a tela pergunta ao n8n a cada 2 segundos. Qualquer
+instância responde a mesma coisa, então não importa em qual delas o polling cai.
 
-## Subir
+Foi essa mudança que tornou a Vercel viável. Na versão anterior o progresso era um `Map` no
+processo, e o callback do n8n chegava numa instância enquanto o navegador perguntava a outra —
+a barra funcionaria de forma intermitente, que é pior do que não existir.
+
+## O que o app faz por requisição
+
+Toda rota é um proxy fino para um webhook do n8n: valida a entrada, injeta o `X-APP-TOKEN` e
+devolve. Nada demora — o disparo em si roda no n8n, não aqui —, então os limites de duração de
+função da Vercel não são um problema.
+
+## Deploy
 
 ```bash
-docker compose build
-docker compose up -d
+vercel --prod
 ```
+
+Ou conectando o repositório pelo painel: `next build` é detectado sozinho, sem configuração.

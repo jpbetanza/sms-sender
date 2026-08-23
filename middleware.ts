@@ -3,7 +3,7 @@ import { validarToken } from "@/lib/session";
 
 // Correspondencia EXATA, nao por prefixo: subarvore publica faria qualquer rota
 // futura aninhada sob esses caminhos nascer sem autenticacao, em silencio.
-const PUBLICAS = new Set(["/login", "/api/login", "/api/progress"]);
+const PUBLICAS = new Set(["/login", "/api/login"]);
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

@@ -1,7 +1,0 @@
-node_modules
-.next
-.git
-.superpowers
-docs
-e2e
-.env*

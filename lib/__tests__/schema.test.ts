@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { enviarSchema, agendarSchema, progressoSchema } from "@/lib/schema";
+import { enviarSchema, agendarSchema, progressoDisparoSchema } from "@/lib/schema";
 
 describe("enviarSchema", () => {
   it("aceita envio simples", () => {
@@ -58,22 +58,24 @@ describe("agendarSchema", () => {
   });
 });
 
-describe("progressoSchema", () => {
-  it("aceita evento de início", () => {
-    expect(progressoSchema.safeParse({ evento: "inicio", jobId: "j1", total: 10 }).success).toBe(true);
+describe("progressoDisparoSchema", () => {
+  const base = { jobId: "j1", total: 10, processados: 4, enviados: 3, falhas: 1 };
+
+  it("aceita um disparo em andamento", () => {
+    expect(progressoDisparoSchema.safeParse({ ...base, status: "enviando" }).success).toBe(true);
   });
 
-  it("aceita evento de progresso", () => {
-    expect(progressoSchema.safeParse({ evento: "progresso", jobId: "j1", ok: true }).success).toBe(true);
+  it("aceita um disparo concluido", () => {
+    expect(progressoDisparoSchema.safeParse({ ...base, status: "concluido" }).success).toBe(true);
   });
 
-  it("aceita evento de fim", () => {
+  it("recusa status desconhecido", () => {
+    expect(progressoDisparoSchema.safeParse({ ...base, status: "outro" }).success).toBe(false);
+  });
+
+  it("recusa contagem negativa", () => {
     expect(
-      progressoSchema.safeParse({ evento: "fim", jobId: "j1", enviados: 9, falhas: 1 }).success,
-    ).toBe(true);
-  });
-
-  it("recusa evento desconhecido", () => {
-    expect(progressoSchema.safeParse({ evento: "outro", jobId: "j1" }).success).toBe(false);
+      progressoDisparoSchema.safeParse({ ...base, status: "enviando", processados: -1 }).success,
+    ).toBe(false);
   });
 });

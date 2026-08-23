@@ -42,17 +42,6 @@ export const agendarSchema = baseEnvio
   });
 export type AgendarInput = z.infer<typeof agendarSchema>;
 
-export const progressoSchema = z.discriminatedUnion("evento", [
-  z.object({ evento: z.literal("inicio"), jobId: z.string().min(1), total: z.number().int().nonnegative() }),
-  z.object({ evento: z.literal("progresso"), jobId: z.string().min(1), ok: z.boolean() }),
-  z.object({
-    evento: z.literal("fim"),
-    jobId: z.string().min(1),
-    enviados: z.number().int().nonnegative(),
-    falhas: z.number().int().nonnegative(),
-  }),
-]);
-export type ProgressoInput = z.infer<typeof progressoSchema>;
 
 export const agendamentoSchema = z.object({
   id: z.string(),
@@ -77,3 +66,13 @@ export const disparoSchema = z.object({
   falhas: z.number().int(),
 });
 export type Disparo = z.infer<typeof disparoSchema>;
+
+export const progressoDisparoSchema = z.object({
+  jobId: z.string(),
+  status: z.enum(["enviando", "concluido"]),
+  total: z.number().int().nonnegative(),
+  processados: z.number().int().nonnegative(),
+  enviados: z.number().int().nonnegative(),
+  falhas: z.number().int().nonnegative(),
+});
+export type ProgressoDisparo = z.infer<typeof progressoDisparoSchema>;

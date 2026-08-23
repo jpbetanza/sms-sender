@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Job } from "@/lib/jobs";
+import type { ProgressoDisparo } from "@/lib/schema";
 
-const INTERVALO_MS = 1500;
+const INTERVALO_MS = 2000;
 const LIMITE_MS = 30 * 60 * 1000;
 
 export function useJobProgress(jobId: string | null) {
-  const [job, setJob] = useState<Job | null>(null);
+  const [progresso, setProgresso] = useState<ProgressoDisparo | null>(null);
   const [perdido, setPerdido] = useState(false);
 
   useEffect(() => {
@@ -22,16 +22,15 @@ export function useJobProgress(jobId: string | null) {
 
       try {
         const r = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
-        if (r.status === 404) {
-          setPerdido(true);
-          return;
+        // 404 logo apos o disparo e esperado: a linha ainda nao foi criada.
+        if (r.ok) {
+          const p: ProgressoDisparo = await r.json();
+          if (!vivo) return;
+          setProgresso(p);
+          if (p.status === "concluido") return;
         }
-        const j: Job = await r.json();
-        if (!vivo) return;
-        setJob(j);
-        if (j.status !== "enviando") return;
       } catch {
-        // rede instavel: ignora e tenta de novo no proximo tick
+        // rede instavel: tenta de novo no proximo tick
       }
 
       if (Date.now() - inicio > LIMITE_MS) {
@@ -49,5 +48,5 @@ export function useJobProgress(jobId: string | null) {
     };
   }, [jobId]);
 
-  return { job, perdido };
+  return { progresso, perdido };
 }

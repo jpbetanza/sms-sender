@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { enviarSchema } from "@/lib/schema";
 import { chamarN8n, N8nIndisponivel } from "@/lib/n8n";
-import { abrirJob, jobExiste, marcarErro } from "@/lib/jobs";
 
 export const runtime = "nodejs";
 
@@ -16,25 +15,16 @@ export async function POST(req: Request) {
   const { grupo, mensagem, fallbackNome } = parsed.data;
   const jobId = parsed.data.jobId ?? randomUUID();
 
-  // Clique duplo: o segundo POST encontra o job aberto e nao dispara de novo.
-  if (jobExiste(jobId)) {
-    return NextResponse.json({ ok: true, jobId, duplicado: true });
-  }
-
-  abrirJob(jobId, grupo);
-
   try {
     await chamarN8n("sms-dispatch", {
       grupo,
       mensagem,
       fallbackNome: fallbackNome ?? "",
       jobId,
-      callbackUrl: `${process.env.APP_PUBLIC_URL}/api/progress`,
       origem: "imediato",
     });
     return NextResponse.json({ ok: true, jobId });
   } catch (e) {
-    marcarErro(jobId);
     if (e instanceof N8nIndisponivel) {
       // Ambiguidade real: pode ter chegado no n8n. Nao afirmamos que falhou.
       return NextResponse.json(
