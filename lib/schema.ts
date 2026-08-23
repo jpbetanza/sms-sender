@@ -54,7 +54,9 @@ export const agendamentoSchema = z.object({
 export type Agendamento = z.infer<typeof agendamentoSchema>;
 
 export const disparoSchema = z.object({
-  id: z.string(),
+  // Data Tables do n8n devolvem o identificador interno como número, enquanto
+  // a interface usa a chave como string. Normalizamos na fronteira da API.
+  id: z.coerce.string(),
   job_id: z.string().nullable(),
   grupo: z.string(),
   mensagem: z.string(),

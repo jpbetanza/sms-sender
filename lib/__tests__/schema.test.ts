@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { enviarSchema, agendarSchema, progressoDisparoSchema } from "@/lib/schema";
+import { agendarSchema, disparoSchema, enviarSchema, progressoDisparoSchema } from "@/lib/schema";
 
 describe("enviarSchema", () => {
   it("aceita envio simples", () => {
@@ -77,5 +77,24 @@ describe("progressoDisparoSchema", () => {
     expect(
       progressoDisparoSchema.safeParse({ ...base, status: "enviando", processados: -1 }).success,
     ).toBe(false);
+  });
+});
+
+describe("disparoSchema", () => {
+  it("normaliza o identificador numérico retornado pelo Data Table do n8n", () => {
+    const resultado = disparoSchema.parse({
+      id: 5,
+      job_id: "job-1",
+      grupo: "Teste",
+      mensagem: "Oi",
+      origem: "imediato",
+      iniciado_em: "2026-08-23T14:15:57.835Z",
+      finalizado_em: "2026-08-23T14:16:00.528Z",
+      total: 1,
+      enviados: 1,
+      falhas: 0,
+    });
+
+    expect(resultado.id).toBe("5");
   });
 });
