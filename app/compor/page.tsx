@@ -198,6 +198,7 @@ export default function ComporPage() {
           <DatePicker
             aria-label="Data e hora do agendamento"
             granularity="minute"
+            hourCycle={24}
             value={dataHora}
             onChange={setDataHora}
           />

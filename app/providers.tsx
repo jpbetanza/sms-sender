@@ -23,7 +23,7 @@ export function Providers({ children, themeProps }: ProvidersProps) {
   const router = useRouter();
 
   return (
-    <HeroUIProvider navigate={router.push}>
+    <HeroUIProvider navigate={router.push} locale="pt-BR">
       <NextThemesProvider {...themeProps}>
         {children}
         <ToastProvider placement="top-center" />
