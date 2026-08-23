@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import clsx from "clsx";
 
 import { Providers } from "./providers";
+import { Navegacao } from "@/components/Navegacao";
 import { fontSans, fontSerif } from "@/config/fonts";
 
 export const metadata: Metadata = {
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         <Providers themeProps={{ attribute: "class", defaultTheme: "light" }}>
           <div className="relative flex flex-col min-h-screen">
+            <Navegacao />
             <main className="flex-grow">{children}</main>
           </div>
         </Providers>

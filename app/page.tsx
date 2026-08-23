@@ -1,9 +1,5 @@
-import { Button } from "@heroui/button";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return (
-    <div className="p-8">
-      <Button color="primary">Botão de teste</Button>
-    </div>
-  );
+  redirect("/compor");
 }
