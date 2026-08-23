@@ -15,7 +15,7 @@ export function Navegacao() {
   if (atual === "/login") return null;
 
   return (
-    <nav className="sticky bottom-0 flex border-t border-[var(--borda-suave)] bg-superficie px-3 pt-2.5 pb-6">
+    <nav className="flex shrink-0 border-t border-[var(--borda-suave)] bg-superficie px-3 pt-2.5 pb-6">
       {ITENS.map(({ href, label, Icone }) => {
         const ativo = atual === href;
         return (
